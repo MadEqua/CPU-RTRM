@@ -1,0 +1,11 @@
+*.db
+*.opendb
+*.user
+.vs/
+
+dependencies/
+Debug/
+Release/
+build/
+x64/
+x86/
