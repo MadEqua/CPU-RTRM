@@ -1,15 +1,15 @@
 #pragma once
 
 #include <vector>
-#include <glm/glm.hpp>
+
+#include "Types.h"
+#include "Simd.h"
 
 
-//TODO: test using SoA
 struct Sphere {
     glm::vec3 pos;
     float radius;
 };
-
 
 //TODO: yeah...
 struct Camera {
@@ -18,18 +18,14 @@ struct Camera {
     glm::vec3 up = {0.0f, 1.0f, 0.0f};
 };
 
-struct Ray {
-    glm::vec3 origin;
-    glm::vec3 dir;
-};
-
 class Scene
 {
 public:
     std::vector<Sphere> spheres;
     Camera camera;
-    glm::vec3 lightDir = {1.0f, -1.0f, 0.0f};
+    glm::vec3 lightDir = {1.0f, -1.0f, 0.0f}; //TODO
 
-    float sdf(const glm::vec3 &pos) const;
+    void sdf(const PointPack &pointPack, float distances[]) const;
+    float sdf(const glm::vec3 &point) const;
 };
 

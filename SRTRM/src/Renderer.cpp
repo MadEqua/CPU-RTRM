@@ -81,11 +81,15 @@ void Renderer::renderFrame(float dt) {
 
         if(hit) {
 
-            Color col = shade(collision.point, collision.normal);
+            /*Color col = shade(collision.point, collision.normal);
 
             *ptr = col.r;
             *(ptr + 1) = col.g;
-            *(ptr + 2) = col.b;
+            *(ptr + 2) = col.b;*/
+
+            *(ptr + 0) = 0.2f;
+            *(ptr + 1) = 1.0f;
+            *(ptr + 2) = 0.1f;
         }
         else {
             *ptr = 0.5f;
@@ -114,7 +118,7 @@ bool Renderer::raymarch(const Ray &ray, Collision &collision) {
 
         if(dist < renderSettings.rayMarchingEpsilon) {
             collision.point = point;
-            collision.normal = computeNormal(point);
+            //collision.normal = computeNormal(point);
             return true;
         }
 
@@ -128,7 +132,7 @@ bool Renderer::raymarch(const Ray &ray, Collision &collision) {
     return false;
 }
 
-glm::vec3 Renderer::computeNormal(const glm::vec3 &point) {
+/*glm::vec3 Renderer::computeNormal(const glm::vec3 &point) {
     const float E = 0.001f;
 
     glm::vec3 grad;
@@ -147,4 +151,4 @@ Color Renderer::shade(const glm::vec3 &point, const glm::vec3 &normal) {
     Color dif = Color(0.6f, 1.0f, 0.0f) * glm::max(0.0f, glm::dot(normal, L));
     Color spec = Color(1.0f) * glm::pow(glm::max(0.0f, glm::dot(normal, H)), 50.0f);
     return dif + spec;
-}
+}*/

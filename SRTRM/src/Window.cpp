@@ -1,6 +1,8 @@
 #include "Window.h"
 
 #include <thread>
+#include <chrono>
+
 #include "RenderSettings.h"
 
 
@@ -17,6 +19,11 @@ void Window::notifyUpdate(const byte * const buffer, float dt) {
     mutex.lock();
     needsRedraw = true;
     mutex.unlock();
+
+    if(dt > 0.0f) {
+        frameTimeSum += dt;
+        frameCount++;
+    }
 }
 
 void Window::internalUpdate(const RenderSettings &renderSettings) {
@@ -27,6 +34,8 @@ void Window::internalUpdate(const RenderSettings &renderSettings) {
     rect.setTexture(&texture);
     texture.setSrgb(true); //enable conversion to srgb. TODO: change when we do this manually
 
+    showFpsTimer.start();
+    
     while(true) {
         sf::Event event;
         while(window.pollEvent(event)) {
@@ -45,14 +54,17 @@ void Window::internalUpdate(const RenderSettings &renderSettings) {
             window.draw(rect);
             window.display();
 
-            using namespace std::chrono;
-            time_point<steady_clock> now = steady_clock::now();
-            uint64 dt = duration_cast<milliseconds>(now - lastRedrawTime).count();
-            lastRedrawTime = steady_clock::now();
-            sf::String title = TITLE + std::to_string(dt) + " ms. FPS:  " + std::to_string(1000.0f / dt);
-            window.setTitle(title);
+            uint64 showFpsTime = showFpsTimer.getElapsedMiliseconds();
+            if(showFpsTime > 200) {
+                float avgFrameTime = frameTimeSum / static_cast<float>(frameCount);
+                uint32 avgFrameTimeMs = static_cast<uint32>(avgFrameTime * 1000.0f);
+                sf::String title = TITLE + std::to_string(avgFrameTimeMs) + " ms. Avg FPS: " + std::to_string(1.0f / avgFrameTime);
+                window.setTitle(title);
+
+                showFpsTimer.start();
+            }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }

@@ -2,14 +2,15 @@
 #include "RenderSettings.h"
 #include "Types.h"
 #include "Renderer.h"
+#include "RendererSimd.h"
 #include "Scene.h"
 
 
 int main(int argc, char **argv) {
 
     RenderSettings renderSettings;
-    renderSettings.width = 768;
-    renderSettings.height = 768;
+    renderSettings.width = 700;
+    renderSettings.height = 700;
     renderSettings.rayMarchingSteps = 16;
     renderSettings.rayMarchingEpsilon = 0.01f;
     renderSettings.rayMarchingMaxDistance = 10.0f;
@@ -25,7 +26,8 @@ int main(int argc, char **argv) {
     scene.spheres.push_back(s2);
     
     Window window(renderSettings);
-    Renderer renderer(renderSettings, scene, window);
+    //Renderer renderer(renderSettings, scene, window);
+    RendererSimd renderer(renderSettings, scene, window);
     
     renderer.startRenderLoop();
 

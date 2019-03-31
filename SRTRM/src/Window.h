@@ -1,11 +1,11 @@
 #pragma once
 
 #include <mutex>
-#include <chrono>
 
 #include <SFML/Graphics.hpp>
 
 #include "Types.h"
+#include "Timer.h"
 
 struct RenderSettings;
 
@@ -25,12 +25,16 @@ private:
     bool needsRedraw = false;
     const byte *buffer;
     std::mutex mutex;
-    std::chrono::time_point<std::chrono::steady_clock> lastRedrawTime;
+
+    float frameTimeSum = 0.0f;
+    uint32 frameCount = 0;
+
+    Timer showFpsTimer;
 
     sf::RectangleShape rect;
     sf::RenderWindow window;
     sf::Texture texture;
 
-    const sf::String TITLE = "Somewhat Real-Time Raytracer [Frame time: ";
+    const sf::String TITLE = "Somewhat Real-Time Raymarcher - Avg frame time: ";
 };
 
