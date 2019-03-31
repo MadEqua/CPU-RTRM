@@ -94,17 +94,8 @@ void RendererSimd::renderFrame(float dt) {
         dirY = MUL_PS(dirY, SET_PS1(2.0f));
         dirY = SUB_PS(dirY, SET_PS1(1.0f));
 
-        //Normalize ray dirs
-        SimdReg dirXSq = MUL_PS(dirX, dirX);
-        SimdReg dirYSq = MUL_PS(dirY, dirY);
-        SimdReg dirZSq = SET_PS1(1.0f); //z = -1
-        SimdReg sum = ADD_PS(dirXSq, ADD_PS(dirYSq, dirZSq));
-        SimdReg dirLengthInv = RSQRT_PS(sum); //1 / sqrt(sum)
-
-        dirX = MUL_PS(dirLengthInv, dirX);
-        dirY = MUL_PS(dirLengthInv, dirY);
-        SimdReg dirZ = MUL_PS(dirLengthInv, SET_PS1(-1.0f));
-
+        SimdReg dirZ = SET_PS1(-1.0f);
+        simdNormalizePack(dirX, dirY, dirZ);
         STORE_PS(rayPack.dirX, dirX);
         STORE_PS(rayPack.dirY, dirY);
         STORE_PS(rayPack.dirZ, dirZ);
@@ -117,16 +108,16 @@ void RendererSimd::renderFrame(float dt) {
         for(uint32 i = 0; i < SIMD_SIZE; ++i) {
 
             if(collisionMask & (1 << i)) {
-                *(ptr + (i * 3) + 0) = 0.2f;
-                *(ptr + (i * 3) + 1) = 1.0f;
-                *(ptr + (i * 3) + 2) = 0.1f;
+                /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
+                *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
+                *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
 
-                //TODO
-                //Color col = shade(collision.point, collision.normal);
+                ColorPack colorPack;
+                shade(collisionPack, colorPack);
 
-                /**ptr = col.r;
-                *(ptr + 1) = col.g;
-                *(ptr + 2) = col.b;*/
+                *(ptr + (i * 3) + 0) = colorPack.x[i];
+                *(ptr + (i * 3) + 1) = colorPack.y[i];
+                *(ptr + (i * 3) + 2) = colorPack.z[i];
             }
             else {
                 *(ptr + (i * 3) + 0) = 0.5f;
@@ -183,11 +174,11 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
         //Using a branch here because we really want to avoid computing normals when we can
         collidedMask = MOVE_MASK_PS(maskEpsilon);
         if(collidedMask) {
-            STORE_PS(collisionPack.pointX, BLENDV_PS(LOAD_PS(collisionPack.pointX), pointX, maskEpsilon));
-            STORE_PS(collisionPack.pointY, BLENDV_PS(LOAD_PS(collisionPack.pointY), pointY, maskEpsilon));
-            STORE_PS(collisionPack.pointZ, BLENDV_PS(LOAD_PS(collisionPack.pointZ), pointZ, maskEpsilon));
+            STORE_PS(collisionPack.pointX, pointX);
+            STORE_PS(collisionPack.pointY, pointY);
+            STORE_PS(collisionPack.pointZ, pointZ);
 
-            //TODO: compute normals
+            computeNormals(pointPack, collisionPack);
 
             //If every ray has collided finish early
             if(collidedMask == ALL_ONES_MASK) {
@@ -195,7 +186,7 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
             }
         }
 
-        //If there is a ray that exceeded max distance
+        //Check if there is a ray that exceeded max distance
         SimdReg maxDist = SET_PS1(renderSettings.rayMarchingMaxDistance);
         SimdReg maskMax = CMP_GT_PS(dists, maxDist);
         int reachedMaxMask = MOVE_MASK_PS(maskEpsilon);
@@ -216,23 +207,125 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
     return collidedMask;
 }
 
-/*glm::vec3 RendererSimd::computeNormal(const glm::vec3 &point) {
-    const float E = 0.001f;
+void RendererSimd::computeNormals(const PointPack &pointPack, CollisionPack &collisionPack) {
+    const float EPSILON = 0.001f;
 
-    glm::vec3 grad;
-    grad.x = scene.sdf(point + glm::vec3(E, 0.0f, 0.0f)) - scene.sdf(point - glm::vec3(E, 0.0f, 0.0f));
-    grad.y = scene.sdf(point + glm::vec3(0.0f, E, 0.0f)) - scene.sdf(point - glm::vec3(0.0f, E, 0.0f));
-    grad.z = scene.sdf(point + glm::vec3(0.0f, 0.0f, E)) - scene.sdf(point - glm::vec3(0.0f, 0.0f, E));
-    return glm::normalize(grad);
+    PointPack displacedPointPack;
+    FloatPack distancePack1;
+    FloatPack distancePack2;
+
+    SimdReg e = SET_PS1(EPSILON);
+
+    //Points to compute normals
+    SimdReg pointX = LOAD_PS(pointPack.x);
+    SimdReg pointY = LOAD_PS(pointPack.y);
+    SimdReg pointZ = LOAD_PS(pointPack.z);
+
+    //Displace x points to compute gradient
+    SimdReg pointX1 = ADD_PS(pointX, e);
+    SimdReg pointX2 = SUB_PS(pointX, e);
+
+    //Compute scene distance for displaced points
+    STORE_PS(displacedPointPack.x, pointX1);
+    STORE_PS(displacedPointPack.y, pointY);
+    STORE_PS(displacedPointPack.z, pointZ);
+    scene.sdf(displacedPointPack, distancePack1);
+
+    STORE_PS(displacedPointPack.x, pointX2);
+    STORE_PS(displacedPointPack.y, pointY);
+    STORE_PS(displacedPointPack.z, pointZ);
+    scene.sdf(displacedPointPack, distancePack2);
+
+    SimdReg diffX = SUB_PS(LOAD_PS(distancePack1), LOAD_PS(distancePack2));
+
+    //Do the same for Y and Z
+    SimdReg pointY1 = ADD_PS(pointY, e);
+    SimdReg pointY2 = SUB_PS(pointY, e);
+
+    STORE_PS(displacedPointPack.x, pointX);
+    STORE_PS(displacedPointPack.y, pointY1);
+    STORE_PS(displacedPointPack.z, pointZ);
+    scene.sdf(displacedPointPack, distancePack1);
+
+    STORE_PS(displacedPointPack.x, pointX);
+    STORE_PS(displacedPointPack.y, pointY2);
+    STORE_PS(displacedPointPack.z, pointZ);
+    scene.sdf(displacedPointPack, distancePack2);
+
+    SimdReg diffY = SUB_PS(LOAD_PS(distancePack1), LOAD_PS(distancePack2));
+
+    SimdReg pointZ1 = ADD_PS(pointZ, e);
+    SimdReg pointZ2 = SUB_PS(pointZ, e);
+
+    STORE_PS(displacedPointPack.x, pointX);
+    STORE_PS(displacedPointPack.y, pointY);
+    STORE_PS(displacedPointPack.z, pointZ1);
+    scene.sdf(displacedPointPack, distancePack1);
+
+    STORE_PS(displacedPointPack.x, pointX);
+    STORE_PS(displacedPointPack.y, pointY);
+    STORE_PS(displacedPointPack.z, pointZ2);
+    scene.sdf(displacedPointPack, distancePack2);
+
+    SimdReg diffZ = SUB_PS(LOAD_PS(distancePack1), LOAD_PS(distancePack2));
+
+    //Normalize gradient vectors (normals) for return
+    simdNormalizePack(diffX, diffY, diffZ);
+
+    STORE_PS(collisionPack.normalX, diffX);
+    STORE_PS(collisionPack.normalY, diffY);
+    STORE_PS(collisionPack.normalZ, diffZ);
 }
 
-Color RendererSimd::shade(const glm::vec3 &point, const glm::vec3 &normal) {
-    glm::vec3 L = glm::normalize(-scene.lightDir);
-    glm::vec3 V = glm::normalize(scene.camera.pos - point);
-    glm::vec3 H = glm::normalize(L + V);
+void RendererSimd::shade(const CollisionPack &collisionPack, ColorPack &colorPack) {
+    
+    SimdReg Lx = SET_PS1(-scene.lightDir.x);
+    SimdReg Ly = SET_PS1(-scene.lightDir.y);
+    SimdReg Lz = SET_PS1(-scene.lightDir.z);
+    simdNormalizePack(Lx, Ly, Lz);
+
+    SimdReg Nx = LOAD_PS(collisionPack.normalX);
+    SimdReg Ny = LOAD_PS(collisionPack.normalY);
+    SimdReg Nz = LOAD_PS(collisionPack.normalZ);
+
+    SimdReg diffuseTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Lx, Ly, Lz));
 
     //TODO: colors hardcoded
-    Color dif = Color(0.6f, 1.0f, 0.0f) * glm::max(0.0f, glm::dot(normal, L));
-    Color spec = Color(1.0f) * glm::pow(glm::max(0.0f, glm::dot(normal, H)), 50.0f);
-    return dif + spec;
-}*/
+    SimdReg difR = MUL_PS(SET_PS1(0.6f), diffuseTerm);
+    SimdReg difG = MUL_PS(SET_PS1(1.0f), diffuseTerm);
+    SimdReg difB = MUL_PS(SET_PS1(0.0f), diffuseTerm);
+
+
+    SimdReg Vx = SUB_PS(SET_PS1(scene.camera.pos.x), LOAD_PS(collisionPack.pointX));
+    SimdReg Vy = SUB_PS(SET_PS1(scene.camera.pos.y), LOAD_PS(collisionPack.pointY));
+    SimdReg Vz = SUB_PS(SET_PS1(scene.camera.pos.z), LOAD_PS(collisionPack.pointZ));
+    simdNormalizePack(Vx, Vy, Vz);
+
+    SimdReg Hx = ADD_PS(Lx, Vx);
+    SimdReg Hy = ADD_PS(Ly, Vy);
+    SimdReg Hz = ADD_PS(Lz, Vz);
+    simdNormalizePack(Hx, Hy, Hz);
+
+    //SimdReg specularTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Hx, Hy, Hz));
+
+    //TODO: find a way to do pow with SIMD
+    /*float specularHack[SIMD_SIZE];
+    STORE_PS(specularHack, specularTerm);
+    for(int i = 0; i < SIMD_SIZE; ++i) {
+        specularHack[i] = glm::pow(specularHack[i], 50.0f);
+    }
+    specularTerm = LOAD_PS(specularHack);*/
+
+    //TODO: colors hardcoded
+    /*SimdReg specR = MUL_PS(SET_PS1(1.0f), specularTerm);
+    SimdReg specG = MUL_PS(SET_PS1(1.0f), specularTerm);
+    SimdReg specB = MUL_PS(SET_PS1(1.0f), specularTerm);
+
+    STORE_PS(colorPack.x, ADD_PS(difR, specR));
+    STORE_PS(colorPack.y, ADD_PS(difG, specG));
+    STORE_PS(colorPack.z, ADD_PS(difB, specB));*/
+    
+    STORE_PS(colorPack.x, difR);
+    STORE_PS(colorPack.y, difG);
+    STORE_PS(colorPack.z, difB);
+}

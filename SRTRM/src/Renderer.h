@@ -19,8 +19,8 @@ private:
     void renderFrame(float dt);
 
     bool raymarch(const Ray &ray, Collision &collision);
-    //glm::vec3 computeNormal(const glm::vec3 &point);
-    //Color shade(const glm::vec3 &point, const glm::vec3 &normal);
+    glm::vec3 computeNormal(const glm::vec3 &point);
+    Color shade(const glm::vec3 &point, const glm::vec3 &normal);
 
     const RenderSettings renderSettings;
     Scene &scene;

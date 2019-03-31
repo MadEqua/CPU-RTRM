@@ -21,8 +21,8 @@ private:
     void renderFrame(float dt);
 
     int raymarch(const RayPack &rayPack, CollisionPack &collisionPack);
-    //glm::vec3 computeNormal(const glm::vec3 &point);
-    //Color shade(const glm::vec3 &point, const glm::vec3 &normal);
+    void computeNormals(const PointPack &pointPack, CollisionPack &collisionPack);
+    void shade(const CollisionPack &collisionPack, ColorPack &colorPack);
 
     const RenderSettings renderSettings;
     Scene &scene;

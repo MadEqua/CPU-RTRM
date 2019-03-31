@@ -3,7 +3,7 @@
 #include <nmmintrin.h> //SSE4.2
 #include <immintrin.h> //AVX
 
-#define SIMD4
+#define SIMD8
 
 #ifdef SIMD4
 
@@ -34,6 +34,8 @@
 #define AND_PS _mm_and_ps
 #define NOT_AND_PS _mm_andnot_ps
 #define OR_PS _mm_or_ps
+
+#define MAX_PS _mm_max_ps
 
 #define CVT_I_PS _mm_cvtepi32_ps
 
@@ -70,6 +72,8 @@
 #define AND_PS _mm256_and_ps
 #define NOT_AND_PS _mm256_andnot_ps
 #define OR_PS _mm256_or_ps
+
+#define MAX_PS _mm256_max_ps
 
 #define CVT_I_PS _mm256_cvtepi32_ps
 
@@ -108,4 +112,26 @@ using RayPack = RayPackT<SIMD_SIZE>;
 using CollisionPack = CollisionPackT<SIMD_SIZE>;
 using PointPack = PointPackT<SIMD_SIZE>;
 using VectorPack = PointPackT<SIMD_SIZE>;
+using ColorPack = PointPackT<SIMD_SIZE>;
 using FloatPack = float[SIMD_SIZE];
+
+
+
+__forceinline void simdNormalizePack(SimdReg &x, SimdReg &y, SimdReg &z) {
+    SimdReg xSq = MUL_PS(x, x);
+    SimdReg ySq = MUL_PS(y, y);
+    SimdReg zSq = MUL_PS(z, z);
+    SimdReg sum = ADD_PS(xSq, ADD_PS(ySq, zSq));
+    SimdReg lengthInv = RSQRT_PS(sum); //1 / sqrt(sum)
+
+    x = MUL_PS(lengthInv, x);
+    y = MUL_PS(lengthInv, y);
+    z = MUL_PS(lengthInv, z);
+}
+
+__forceinline SimdReg simdDotPack(SimdReg x1, SimdReg y1, SimdReg z1, SimdReg x2, SimdReg y2, SimdReg z2) {
+    SimdReg x = MUL_PS(x1, x2);
+    SimdReg y = MUL_PS(y1, y2);
+    SimdReg z = MUL_PS(z1, z2);
+    return ADD_PS(x, ADD_PS(y, z));
+}

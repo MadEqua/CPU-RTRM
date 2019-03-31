@@ -25,7 +25,7 @@ public:
     Camera camera;
     glm::vec3 lightDir = {1.0f, -1.0f, 0.0f}; //TODO
 
-    void sdf(const PointPack &pointPack, float distances[]) const;
+    void sdf(const PointPack &pointPack, FloatPack &floatPack) const;
     float sdf(const glm::vec3 &point) const;
 };
 

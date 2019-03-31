@@ -2,7 +2,7 @@
 
 #include <limits>
 
-void Scene::sdf(const PointPack &pointPack, float distances[]) const {
+void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
     SimdReg min = SET_PS1(std::numeric_limits<float>().max());
 
     SimdReg x = LOAD_PS(pointPack.x);
@@ -30,7 +30,7 @@ void Scene::sdf(const PointPack &pointPack, float distances[]) const {
         min = BLENDV_PS(min, distance, distSmallerThanMinMask);
     }
     
-    STORE_PS(distances, min);
+    STORE_PS(floatPack, min);
 }
 
 float Scene::sdf(const glm::vec3 &point) const {
