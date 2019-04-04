@@ -140,6 +140,7 @@
     <ClCompile Include="src\Scene.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Simd.cpp" />
     <ClCompile Include="src\Window.cpp" />
     <ClCompile Include="src\Timer.cpp" />
   </ItemGroup>

@@ -22,7 +22,7 @@ private:
 
     int raymarch(const RayPack &rayPack, CollisionPack &collisionPack);
     void computeNormals(const PointPack &pointPack, CollisionPack &collisionPack);
-    void shade(const CollisionPack &collisionPack, ColorPack &colorPack);
+    void shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &colorPack);
 
     const RenderSettings renderSettings;
     Scene &scene;

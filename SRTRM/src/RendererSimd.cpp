@@ -81,20 +81,20 @@ void RendererSimd::renderFrame(float dt) {
 
         //Transform pixel coords to [0, 1] and then map [-1, 1]
         SimdRegi dirXi = LOAD_SI(reinterpret_cast<const SimdRegi*>(x));
-        SimdReg dirX = CVT_I_PS(dirXi);
+        SimdReg dirX = CVT_I_TO_PS(dirXi);
         dirX = ADD_PS(dirX, SET_PS1(0.5f));
         dirX = MUL_PS(dirX, SET_PS1(xStep));
         dirX = MUL_PS(dirX, SET_PS1(2.0f));
         dirX = SUB_PS(dirX, SET_PS1(1.0f));
 
         SimdRegi dirYi = LOAD_SI(reinterpret_cast<const SimdRegi*>(invertedY));
-        SimdReg dirY = CVT_I_PS(dirYi);
+        SimdReg dirY = CVT_I_TO_PS(dirYi);
         dirY = ADD_PS(dirY, SET_PS1(0.5f));
         dirY = MUL_PS(dirY, SET_PS1(yStep));
         dirY = MUL_PS(dirY, SET_PS1(2.0f));
         dirY = SUB_PS(dirY, SET_PS1(1.0f));
 
-        SimdReg dirZ = SET_PS1(-1.0f);
+        SimdReg dirZ = SET_PS1(-1.0f); //TODO: have a "real" camera instead of adjusting this
         simdNormalizePack(dirX, dirY, dirZ);
         STORE_PS(rayPack.dirX, dirX);
         STORE_PS(rayPack.dirY, dirY);
@@ -113,7 +113,7 @@ void RendererSimd::renderFrame(float dt) {
                 *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
 
                 ColorPack colorPack;
-                shade(collisionPack, colorPack);
+                shadeBlinnPhong(collisionPack, colorPack);
 
                 *(ptr + (i * 3) + 0) = colorPack.x[i];
                 *(ptr + (i * 3) + 1) = colorPack.y[i];
@@ -277,7 +277,7 @@ void RendererSimd::computeNormals(const PointPack &pointPack, CollisionPack &col
     STORE_PS(collisionPack.normalZ, diffZ);
 }
 
-void RendererSimd::shade(const CollisionPack &collisionPack, ColorPack &colorPack) {
+void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &colorPack) {
     
     SimdReg Lx = SET_PS1(-scene.lightDir.x);
     SimdReg Ly = SET_PS1(-scene.lightDir.y);
@@ -306,26 +306,15 @@ void RendererSimd::shade(const CollisionPack &collisionPack, ColorPack &colorPac
     SimdReg Hz = ADD_PS(Lz, Vz);
     simdNormalizePack(Hx, Hy, Hz);
 
-    //SimdReg specularTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Hx, Hy, Hz));
-
-    //TODO: find a way to do pow with SIMD
-    /*float specularHack[SIMD_SIZE];
-    STORE_PS(specularHack, specularTerm);
-    for(int i = 0; i < SIMD_SIZE; ++i) {
-        specularHack[i] = glm::pow(specularHack[i], 50.0f);
-    }
-    specularTerm = LOAD_PS(specularHack);*/
+    SimdReg specularTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Hx, Hy, Hz));
+    specularTerm = simdPow(specularTerm, SET_PS1(50.0f));
 
     //TODO: colors hardcoded
-    /*SimdReg specR = MUL_PS(SET_PS1(1.0f), specularTerm);
+    SimdReg specR = MUL_PS(SET_PS1(1.0f), specularTerm);
     SimdReg specG = MUL_PS(SET_PS1(1.0f), specularTerm);
     SimdReg specB = MUL_PS(SET_PS1(1.0f), specularTerm);
 
     STORE_PS(colorPack.x, ADD_PS(difR, specR));
     STORE_PS(colorPack.y, ADD_PS(difG, specG));
-    STORE_PS(colorPack.z, ADD_PS(difB, specB));*/
-    
-    STORE_PS(colorPack.x, difR);
-    STORE_PS(colorPack.y, difG);
-    STORE_PS(colorPack.z, difB);
+    STORE_PS(colorPack.z, ADD_PS(difB, specB));
 }

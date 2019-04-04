@@ -35,6 +35,6 @@ private:
     sf::RenderWindow window;
     sf::Texture texture;
 
-    const sf::String TITLE = "Somewhat Real-Time Raymarcher - Avg frame time: ";
+    const sf::String TITLE = "Somewhat Real-Time RayMarcher - Avg frame time: ";
 };
 

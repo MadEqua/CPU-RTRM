@@ -31,22 +31,20 @@ void Renderer::startRenderLoop() {
     time_point<steady_clock> start = steady_clock::now();
     time_point<steady_clock> end = steady_clock::now();
 
-    do {
+    while(!window.isOpen())
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+
+    while(window.isOpen()) {
         float dt = duration_cast<duration<float>>(end - start).count();
         start = steady_clock::now();
         updateData(dt);
         renderFrame(dt);
         window.notifyUpdate(byteData, dt);
         end = steady_clock::now();
-    } while(window.isOpen());
+    };
 }
 
 void Renderer::updateData(float dt) {
-    static float elapsed = 0.0f;
-    elapsed += dt;
-
-    scene.lightDir.x = dt * glm::sin(elapsed * 2.0f);
-    scene.lightDir.z = dt * glm::cos(elapsed * 2.0f);
 }
 
 void Renderer::renderFrame(float dt) {
@@ -80,7 +78,7 @@ void Renderer::renderFrame(float dt) {
         float *ptr = data + px * 3;
 
         if(hit) {
-            Color col = shade(collision.point, collision.normal);
+            Color col = shadeBlinnPhong(collision.point, collision.normal);
 
             *ptr = col.r;
             *(ptr + 1) = col.g;
@@ -137,7 +135,7 @@ glm::vec3 Renderer::computeNormal(const glm::vec3 &point) {
     return glm::normalize(grad);
 }
 
-Color Renderer::shade(const glm::vec3 &point, const glm::vec3 &normal) {
+Color Renderer::shadeBlinnPhong(const glm::vec3 &point, const glm::vec3 &normal) {
     glm::vec3 L = glm::normalize(-scene.lightDir);
     glm::vec3 V = glm::normalize(scene.camera.pos - point);
     glm::vec3 H = glm::normalize(L + V);
