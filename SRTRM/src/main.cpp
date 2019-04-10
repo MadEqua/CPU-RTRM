@@ -10,13 +10,13 @@
 int main(int argc, char **argv) {
 
     RenderSettings renderSettings;
-    renderSettings.width = 600;
-    renderSettings.height = 400;
+    renderSettings.width = 800;
+    renderSettings.height = 600;
     renderSettings.rayMarchingSteps = 32;
     renderSettings.rayMarchingEpsilon = 0.01f;
     renderSettings.rayMarchingMaxDistance = 10.0f;
 
-    Scene scene(new Camera(glm::vec3(0.0f, 0.0f, -1.0f), 90.0f, renderSettings.width, renderSettings.height));
+    Scene scene(new Camera(-2.0f, 90.0f, renderSettings.width, renderSettings.height));
     Sphere s = {{0.0f, 0.0f, 0.0f}, 0.5f};
     scene.spheres.push_back(s);
 

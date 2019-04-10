@@ -9,7 +9,7 @@
 class Camera
 {
 public:
-    Camera(const glm::vec3 &initialPosition, float fovy, uint32 widthPx, uint32 heightPx);
+    Camera(float initialPositionZ, float fovy, uint32 widthPx, uint32 heightPx);
 
     //Generates world space rays from pixel/screen coords
     void generateRayPack(const Point2Pack &pixelCoordsPack, RayPack &outRayPack) const;
@@ -19,8 +19,7 @@ public:
     glm::vec3 getPosition() const { return positionWorld; }
 
 private:
-    const glm::vec3 initialPosition;
-    float fovy;
+    float initialPositionZ;
     float tanHalfFovy;
     uint32 widthPx, heightPx;
     float invWidth, invHeight;
@@ -35,6 +34,6 @@ private:
     glm::mat3 cameraToWorldMatrix;
     void updateMatrix();
 
-    static float angleClamp(float r);
+    //static float angleClamp(float r);
 };
 

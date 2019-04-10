@@ -2,9 +2,9 @@
 
 #include <SFML/Window.hpp>
 
-Camera::Camera(const glm::vec3 &initialPosition, float fovy, uint32 widthPx, uint32 heightPx) :
-    initialPosition(initialPosition),
-    fovy(fovy), tanHalfFovy(glm::tan(glm::radians(fovy * 0.5f))),
+Camera::Camera(float initialPositionZ, float fovy, uint32 widthPx, uint32 heightPx) :
+    initialPositionZ(initialPositionZ),
+    tanHalfFovy(glm::tan(glm::radians(fovy * 0.5f))),
     widthPx(widthPx), heightPx(heightPx),
     invWidth(1.0f / static_cast<float>(widthPx)),
     invHeight(1.0f / static_cast<float>(heightPx)),
@@ -55,9 +55,9 @@ void Camera::generateRayPack(const Point2Pack &pixelCoordsPack, RayPack &outRayP
     SimdReg dirWorldZ = ADD_PS(ADD_PS(MUL_PS(pixelCoordX, xBaseZ), MUL_PS(pixelCoordY, yBaseZ)), zBaseZ);
 
     simdNormalizePack(dirWorldX, dirWorldY, dirWorldZ);
-    STORE_PS(outRayPack.dirX, dirWorldX);
-    STORE_PS(outRayPack.dirY, dirWorldY);
-    STORE_PS(outRayPack.dirZ, dirWorldZ);
+    STORE_PS(outRayPack.directions.x, dirWorldX);
+    STORE_PS(outRayPack.directions.y, dirWorldY);
+    STORE_PS(outRayPack.directions.z, dirWorldZ);
 
     outRayPack.origin = positionWorld;
 }
@@ -70,9 +70,9 @@ void Camera::update(float dt) {
         if(xMov || yMov) {
             auto diff = lastCursorPos - curCursorPos;
             if(xMov)
-                yRot = angleClamp(yRot - diff.x);
+                yRot = glm::clamp(yRot - diff.x, -180.0f, 179.9f);
             if(yMov)
-                xRot = angleClamp(xRot - diff.y);
+                xRot = glm::clamp(xRot + diff.y, 0.0f, 180.0f);
             updateMatrix();
         }
         lastCursorPos = curCursorPos;
@@ -81,8 +81,8 @@ void Camera::update(float dt) {
         auto curCursorPos = sf::Mouse::getPosition();
         if(lastCursorPos.y != -1) {
             auto diff = lastCursorPos.y - curCursorPos.y;
-            fovy = angleClamp(fovy + diff * 0.5f);
-            tanHalfFovy = glm::tan(glm::radians(fovy * 0.5f));
+            initialPositionZ = glm::max(0.05f, initialPositionZ - diff * 0.01f);
+            updateMatrix();
         }
         lastCursorPos = curCursorPos;
     }
@@ -109,15 +109,15 @@ void Camera::updateMatrix() {
                                 0.0f, cosX, -sinX,
                                 0.0f, sinX, cosX);
 
-    positionWorld = xRotMatrix * yRotMatrix * initialPosition;
+    positionWorld = xRotMatrix * yRotMatrix * glm::vec3(0.0f, 0.0f, initialPositionZ);
 
     cameraToWorldMatrix[2] = glm::normalize(-positionWorld);
     cameraToWorldMatrix[0] = glm::normalize(glm::cross(UP_VECTOR, cameraToWorldMatrix[2]));
     cameraToWorldMatrix[1] = glm::normalize(glm::cross(cameraToWorldMatrix[2], cameraToWorldMatrix[0]));
 }
 
-float Camera::angleClamp(float r) {
+/*float Camera::angleClamp(float r) {
     if(r < 0.0f) return 360.0f + r;
     else if(r > 360.0f) return r - 360.0f;
     else return r;
-}
+}*/

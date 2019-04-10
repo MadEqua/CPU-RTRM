@@ -36,7 +36,7 @@ void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
     
     STORE_PS(floatPack, min);*/
 
-    sphereSdf(pointPack, floatPack);
+    fractalSdf(pointPack, floatPack);
 }
 
 float Scene::sdf(const glm::vec3 &point) const {
@@ -50,8 +50,8 @@ float Scene::sdf(const glm::vec3 &point) const {
     return min;
 }
 
-void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
-    const int ITERATIONS = 8;
+ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
+    const int ITERATIONS = 6;
     const float SCALE = 2.0f;
     
     SimdReg x = LOAD_PS(pointPack.x);
@@ -104,7 +104,7 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
         scalePowAcum = MUL_PS(scalePowAcum, scale);
     }
 
-    SimdReg res = MUL_PS(simdLengthPack(x, y, z), DIV_PS(one, scalePowAcum));
+    SimdReg res = MUL_PS(fractalShape(x, y, z), DIV_PS(one, scalePowAcum));
     STORE_PS(floatPack, res);
 }
 
@@ -118,7 +118,7 @@ void Scene::fractalSdf2(const PointPack &pointPack, FloatPack &floatPack) const 
 
     SimdReg one = SET_PS1(1.0f);
     SimdReg negOne = SET_PS1(-1.0f);
-    SimdReg zero = SET_PS1(0.0f);
+    SimdReg zero = SET_ZERO_PS();
 
     SimdReg scale = SET_PS1(SCALE);
     SimdReg scaleMinOne = SUB_PS(scale, one);
@@ -156,8 +156,25 @@ void Scene::fractalSdf2(const PointPack &pointPack, FloatPack &floatPack) const 
         scalePowAcum = MUL_PS(scalePowAcum, scale);
     }
 
-    SimdReg res = MUL_PS(simdLengthPack(x, y, z), DIV_PS(one, scalePowAcum));
+    SimdReg res = MUL_PS(fractalShape(x, y, z), DIV_PS(one, scalePowAcum));
     STORE_PS(floatPack, res);
+}
+
+SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) const {
+    static SimdReg invSqrtThree = DIV_PS(SET_PS1(1.0f), SQRT_PS(SET_PS1(3.0f)));
+
+    SimdReg negOne = SET_PS1(-1.0f);
+    SimdReg xNeg = MUL_PS(x, negOne);
+    SimdReg yNeg = MUL_PS(y, negOne);
+    SimdReg zNeg = MUL_PS(z, negOne);
+
+    SimdReg max1 = MAX_PS(ADD_PS(xNeg, ADD_PS(yNeg, zNeg)),
+                          ADD_PS(x, ADD_PS(y, zNeg)));
+    SimdReg max2 = MAX_PS(ADD_PS(xNeg, ADD_PS(y, z)),
+                          ADD_PS(x, ADD_PS(yNeg, z)));
+    SimdReg max = MAX_PS(max1, max2);
+    SimdReg res = SUB_PS(max, SET_PS1(1.0f));
+    return MUL_PS(invSqrtThree, res);
 }
 
 void Scene::sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const {

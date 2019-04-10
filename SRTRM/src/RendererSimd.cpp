@@ -93,16 +93,17 @@ void RendererSimd::renderFrame(float dt) {
         for(uint32 i = 0; i < SIMD_SIZE; ++i) {
 
             if(collisionMask & (1 << i)) {
-                *(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
+                /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
                 *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
-                *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;
+                *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
 
                 ColorPack colorPack;
-                shadeBlinnPhong(collisionPack, colorPack);
+                //shadeBlinnPhong(collisionPack, colorPack);
+                shadeSteps(collisionPack, colorPack);
 
-                /**(ptr + (i * 3) + 0) = colorPack.x[i];
+                *(ptr + (i * 3) + 0) = colorPack.x[i];
                 *(ptr + (i * 3) + 1) = colorPack.y[i];
-                *(ptr + (i * 3) + 2) = colorPack.z[i];*/
+                *(ptr + (i * 3) + 2) = colorPack.z[i];
             }
             else {
                 *(ptr + (i * 3) + 0) = 0.5f;
@@ -130,6 +131,7 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
     SimdReg rayOriginX = SET_PS1(rayPack.origin.x);
     SimdReg rayOriginY = SET_PS1(rayPack.origin.y);
     SimdReg rayOriginZ = SET_PS1(rayPack.origin.z);
+    SimdReg steps = SET_ZERO_PS();
 
     const int ALL_ONES_MASK = (1 << SIMD_SIZE) - 1;
     int collidedMask = 0;
@@ -139,9 +141,9 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
     for(uint32 i = 0; i < renderSettings.rayMarchingSteps; ++i) {
        
         //Walk along the rays
-        SimdReg pointX = ADD_PS(rayOriginX, MUL_PS(LOAD_PS(rayPack.dirX), t));
-        SimdReg pointY = ADD_PS(rayOriginY, MUL_PS(LOAD_PS(rayPack.dirY), t));
-        SimdReg pointZ = ADD_PS(rayOriginZ, MUL_PS(LOAD_PS(rayPack.dirZ), t));
+        SimdReg pointX = ADD_PS(rayOriginX, MUL_PS(LOAD_PS(rayPack.directions.x), t));
+        SimdReg pointY = ADD_PS(rayOriginY, MUL_PS(LOAD_PS(rayPack.directions.y), t));
+        SimdReg pointZ = ADD_PS(rayOriginZ, MUL_PS(LOAD_PS(rayPack.directions.z), t));
 
         PointPack pointPack;
         STORE_PS(pointPack.x, pointX);
@@ -159,11 +161,11 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
         //Using a branch here because we really want to avoid computing normals when we can
         collidedMask = MOVE_MASK_PS(maskEpsilon);
         if(collidedMask) {
-            STORE_PS(collisionPack.pointX, pointX);
-            STORE_PS(collisionPack.pointY, pointY);
-            STORE_PS(collisionPack.pointZ, pointZ);
+            STORE_PS(collisionPack.points.x, pointX);
+            STORE_PS(collisionPack.points.y, pointY);
+            STORE_PS(collisionPack.points.z, pointZ);
 
-            computeNormals(pointPack, collisionPack);
+            STORE_PS(collisionPack.steps, steps);
 
             //If every ray has collided finish early
             if(collidedMask == ALL_ONES_MASK) {
@@ -184,15 +186,17 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
         //make sure to not move t for "finished" rays
         SimdReg combinedMask = OR_PS(maskEpsilon, maskMax);
         SimdReg maskedDists = NOT_AND_PS(combinedMask, dists);
+        SimdReg maskedStepIncrement = NOT_AND_PS(combinedMask, SET_PS1(1.0f));
         
         //Move t by the distances. Finished rays were masked out and will not change
         t = ADD_PS(t, maskedDists);
+        steps = ADD_PS(steps, maskedStepIncrement);
     }
 
     return collidedMask;
 }
 
-void RendererSimd::computeNormals(const PointPack &pointPack, CollisionPack &collisionPack) {
+void RendererSimd::computeNormals(const PointPack &pointPack, VectorPack &outNormalPack) {
     const float EPSILON = 0.001f;
 
     PointPack displacedPointPack;
@@ -257,21 +261,24 @@ void RendererSimd::computeNormals(const PointPack &pointPack, CollisionPack &col
     //Normalize gradient vectors (normals) for return
     simdNormalizePack(diffX, diffY, diffZ);
 
-    STORE_PS(collisionPack.normalX, diffX);
-    STORE_PS(collisionPack.normalY, diffY);
-    STORE_PS(collisionPack.normalZ, diffZ);
+    STORE_PS(outNormalPack.x, diffX);
+    STORE_PS(outNormalPack.y, diffY);
+    STORE_PS(outNormalPack.z, diffZ);
 }
 
-void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &colorPack) {
+void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &outColorPack) {
     
+    VectorPack normalPack;
+    computeNormals(collisionPack.points, normalPack);
+
     SimdReg Lx = SET_PS1(-scene.lightDir.x);
     SimdReg Ly = SET_PS1(-scene.lightDir.y);
     SimdReg Lz = SET_PS1(-scene.lightDir.z);
     simdNormalizePack(Lx, Ly, Lz);
 
-    SimdReg Nx = LOAD_PS(collisionPack.normalX);
-    SimdReg Ny = LOAD_PS(collisionPack.normalY);
-    SimdReg Nz = LOAD_PS(collisionPack.normalZ);
+    SimdReg Nx = LOAD_PS(normalPack.x);
+    SimdReg Ny = LOAD_PS(normalPack.y);
+    SimdReg Nz = LOAD_PS(normalPack.z);
 
     SimdReg diffuseTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Lx, Ly, Lz));
 
@@ -280,10 +287,10 @@ void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack
     SimdReg difG = MUL_PS(SET_PS1(1.0f), diffuseTerm);
     SimdReg difB = MUL_PS(SET_PS1(0.0f), diffuseTerm);
 
-
-    /*SimdReg Vx = SUB_PS(SET_PS1(scene.camera.getPosition().x), LOAD_PS(collisionPack.pointX));
-    SimdReg Vy = SUB_PS(SET_PS1(scene.camera.getPosition().y), LOAD_PS(collisionPack.pointY));
-    SimdReg Vz = SUB_PS(SET_PS1(scene.camera.getPosition().z), LOAD_PS(collisionPack.pointZ));
+    auto cameraPos = scene.camera->getPosition();
+    SimdReg Vx = SUB_PS(SET_PS1(cameraPos.x), LOAD_PS(collisionPack.points.x));
+    SimdReg Vy = SUB_PS(SET_PS1(cameraPos.y), LOAD_PS(collisionPack.points.y));
+    SimdReg Vz = SUB_PS(SET_PS1(cameraPos.z), LOAD_PS(collisionPack.points.z));
     simdNormalizePack(Vx, Vy, Vz);
 
     SimdReg Hx = ADD_PS(Lx, Vx);
@@ -299,11 +306,15 @@ void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack
     SimdReg specG = MUL_PS(SET_PS1(1.0f), specularTerm);
     SimdReg specB = MUL_PS(SET_PS1(1.0f), specularTerm);
 
-    STORE_PS(colorPack.x, ADD_PS(difR, specR));
-    STORE_PS(colorPack.y, ADD_PS(difG, specG));
-    STORE_PS(colorPack.z, ADD_PS(difB, specB));*/
+    STORE_PS(outColorPack.x, ADD_PS(difR, specR));
+    STORE_PS(outColorPack.y, ADD_PS(difG, specG));
+    STORE_PS(outColorPack.z, ADD_PS(difB, specB));
+}
 
-    STORE_PS(colorPack.x, difR);
-    STORE_PS(colorPack.y, difG);
-    STORE_PS(colorPack.z, difB);
+void RendererSimd::shadeSteps(const CollisionPack &collisionPack, ColorPack &outColorPack) {
+    SimdReg steps = LOAD_PS(collisionPack.steps);
+    SimdReg color = DIV_PS(steps, SET_PS1(static_cast<float>(renderSettings.rayMarchingSteps)));
+    STORE_PS(outColorPack.x, color);
+    STORE_PS(outColorPack.y, color);
+    STORE_PS(outColorPack.z, color);
 }

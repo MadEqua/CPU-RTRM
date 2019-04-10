@@ -20,9 +20,10 @@ private:
     void updateData(float dt);
     void renderFrame(float dt);
 
-    int raymarch(const RayPack &rayPack, CollisionPack &collisionPack);
-    void computeNormals(const PointPack &pointPack, CollisionPack &collisionPack);
-    void shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &colorPack);
+    int raymarch(const RayPack &rayPack, CollisionPack &outCollisionPack);
+    void computeNormals(const PointPack &pointPack, VectorPack &outNormalPack);
+    void shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &outColorPack);
+    void shadeSteps(const CollisionPack &collisionPack, ColorPack &outColorPack);
 
     const RenderSettings renderSettings;
     Scene &scene;

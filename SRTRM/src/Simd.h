@@ -15,7 +15,9 @@
 #define LOAD_PS _mm_load_ps
 #define LOAD_SI _mm_load_si128
 #define STORE_PS _mm_store_ps
+#define STORE_I _mm_store_si128
 #define SET_ZERO_PS _mm_setzero_ps
+#define SET_ZERO_I _mm_setzero_si128
 #define SET_I1 _mm_set1_epi32
 
 #define ADD_PS _mm_add_ps
@@ -36,6 +38,7 @@
 
 #define AND_PS _mm_and_ps
 #define NOT_AND_PS _mm_andnot_ps
+#define NOT_AND_I _mm_andnot_si128
 #define OR_PS _mm_or_ps
 #define AND_I _mm_and_si128
 
@@ -65,7 +68,9 @@
 #define LOAD_PS _mm256_load_ps
 #define LOAD_SI _mm256_load_si256
 #define STORE_PS _mm256_store_ps
+#define STORE_I _mm256_store_si256
 #define SET_ZERO_PS _mm256_setzero_ps
+#define SET_ZERO_I _mm256_setzero_si256
 #define SET_I1 _mm256_set1_epi32
 
 #define ADD_PS _mm256_add_ps
@@ -86,6 +91,7 @@
 
 #define AND_PS _mm256_and_ps
 #define NOT_AND_PS _mm256_andnot_ps
+#define NOT_AND_I _mm256_andnot_si256
 #define OR_PS _mm256_or_ps
 #define AND_I _mm256_and_si256
 
@@ -107,24 +113,6 @@
 #include <glm/glm.hpp>
 #include "Types.h"
 
-template<byte N>
-struct RayPackT {
-    float dirX[N];
-    float dirY[N];
-    float dirZ[N];
-    glm::vec3 origin;
-};
-
-template <byte N>
-struct CollisionPackT {
-    float pointX[N];
-    float pointY[N];
-    float pointZ[N];
-    float normalX[N];
-    float normalY[N];
-    float normalZ[N];
-};
-
 template <byte N>
 struct PointPackT {
     float x[N];
@@ -133,17 +121,36 @@ struct PointPackT {
 };
 
 template <byte N>
+using VectorPackT = PointPackT<N>;
+
+template <byte N>
+using ColorPackT = PointPackT<N>;
+
+template<byte N>
+struct RayPackT {
+    VectorPackT<N> directions;
+    glm::vec3 origin;
+};
+
+template <byte N>
+struct CollisionPackT {
+    PointPackT<N> points;
+    float steps[N]; //These are floats but could be ints
+};
+
+template <byte N>
 struct Point2PackT {
     float x[N];
     float y[N];
 };
 
+using PointPack = PointPackT<SIMD_SIZE>;
 using RayPack = RayPackT<SIMD_SIZE>;
 using CollisionPack = CollisionPackT<SIMD_SIZE>;
-using PointPack = PointPackT<SIMD_SIZE>;
+using ColorPack = ColorPackT<SIMD_SIZE>;
+using VectorPack = VectorPackT<SIMD_SIZE>;
 using Point2Pack = Point2PackT<SIMD_SIZE>;
-using VectorPack = PointPackT<SIMD_SIZE>;
-using ColorPack = PointPackT<SIMD_SIZE>;
+
 using FloatPack = float[SIMD_SIZE];
 using IntPack = int[SIMD_SIZE];
 
