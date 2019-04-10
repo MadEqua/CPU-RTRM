@@ -56,9 +56,6 @@ void RendererSimd::updateData(float dt) {
 void RendererSimd::renderFrame(float dt) {
     uint32 pixelCount = renderSettings.width * renderSettings.height;
 
-    float xStep = 1.0f / static_cast<float>(renderSettings.width);
-    float yStep = 1.0f / static_cast<float>(renderSettings.height);
-
     Point2Pack point2Pack;
     RayPack rayPack;
     CollisionPack collisionPack;
@@ -81,18 +78,12 @@ void RendererSimd::renderFrame(float dt) {
             invertedY[i] = renderSettings.height - y - 1;
         }
 
-        //Convert to [0, 1] range
+        //Batch convert to float
         SimdReg pointX = CVT_I_TO_PS(LOAD_SI(reinterpret_cast<const SimdRegi*>(x)));
-        pointX = ADD_PS(pointX, SET_PS1(0.5f)); //use the pixel center
-        pointX = MUL_PS(pointX, SET_PS1(yStep));
-        
         SimdReg pointY = CVT_I_TO_PS(LOAD_SI(reinterpret_cast<const SimdRegi*>(invertedY)));
-        pointY = ADD_PS(pointY, SET_PS1(0.5f));
-        pointY = MUL_PS(pointY, SET_PS1(yStep));
-
         STORE_PS(point2Pack.x, pointX);
         STORE_PS(point2Pack.y, pointY);
-        scene.camera.generateRayPack(point2Pack, rayPack);
+        scene.camera->generateRayPack(point2Pack, rayPack);
 
 
         int collisionMask = raymarch(rayPack, collisionPack);
@@ -102,16 +93,16 @@ void RendererSimd::renderFrame(float dt) {
         for(uint32 i = 0; i < SIMD_SIZE; ++i) {
 
             if(collisionMask & (1 << i)) {
-                /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
+                *(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
                 *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
-                *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
+                *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;
 
                 ColorPack colorPack;
                 shadeBlinnPhong(collisionPack, colorPack);
 
-                *(ptr + (i * 3) + 0) = colorPack.x[i];
+                /**(ptr + (i * 3) + 0) = colorPack.x[i];
                 *(ptr + (i * 3) + 1) = colorPack.y[i];
-                *(ptr + (i * 3) + 2) = colorPack.z[i];
+                *(ptr + (i * 3) + 2) = colorPack.z[i];*/
             }
             else {
                 *(ptr + (i * 3) + 0) = 0.5f;
@@ -290,7 +281,7 @@ void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack
     SimdReg difB = MUL_PS(SET_PS1(0.0f), diffuseTerm);
 
 
-    SimdReg Vx = SUB_PS(SET_PS1(scene.camera.getPosition().x), LOAD_PS(collisionPack.pointX));
+    /*SimdReg Vx = SUB_PS(SET_PS1(scene.camera.getPosition().x), LOAD_PS(collisionPack.pointX));
     SimdReg Vy = SUB_PS(SET_PS1(scene.camera.getPosition().y), LOAD_PS(collisionPack.pointY));
     SimdReg Vz = SUB_PS(SET_PS1(scene.camera.getPosition().z), LOAD_PS(collisionPack.pointZ));
     simdNormalizePack(Vx, Vy, Vz);
@@ -310,5 +301,9 @@ void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack
 
     STORE_PS(colorPack.x, ADD_PS(difR, specR));
     STORE_PS(colorPack.y, ADD_PS(difG, specG));
-    STORE_PS(colorPack.z, ADD_PS(difB, specB));
+    STORE_PS(colorPack.z, ADD_PS(difB, specB));*/
+
+    STORE_PS(colorPack.x, difR);
+    STORE_PS(colorPack.y, difG);
+    STORE_PS(colorPack.z, difB);
 }

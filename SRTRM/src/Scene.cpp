@@ -2,6 +2,10 @@
 
 #include <limits>
 
+Scene::Scene(Camera *camera) :
+    camera(camera) {
+}
+
 void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
     /*SimdReg min = SET_PS1(std::numeric_limits<float>().max());
 
@@ -32,7 +36,7 @@ void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
     
     STORE_PS(floatPack, min);*/
 
-    fractalSdf(pointPack, floatPack);
+    sphereSdf(pointPack, floatPack);
 }
 
 float Scene::sdf(const glm::vec3 &point) const {
@@ -58,7 +62,9 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
     SimdReg negOne = SET_PS1(-1.0f);
 
     SimdReg scale = SET_PS1(SCALE);
-    SimdReg scaleMinOne = SUB_PS(scale, SET_PS1(1.0f));
+    SimdReg scaleMinOne = SUB_PS(scale, one);
+
+    SimdReg scalePowAcum = one;
 
     int n = 0;
     while(n < ITERATIONS) {
@@ -95,9 +101,62 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
         z = SUB_PS(MUL_PS(scale, z), MUL_PS(cZ, scaleMinOne));
 
         n++;
+        scalePowAcum = MUL_PS(scalePowAcum, scale);
     }
 
-    SimdReg res = MUL_PS(simdLengthPack(x, y, z), simdPow(scale, SET_PS1(static_cast<float>(-n))));
+    SimdReg res = MUL_PS(simdLengthPack(x, y, z), DIV_PS(one, scalePowAcum));
+    STORE_PS(floatPack, res);
+}
+
+void Scene::fractalSdf2(const PointPack &pointPack, FloatPack &floatPack) const {
+    const int ITERATIONS = 8;
+    const float SCALE = 2.0f;
+
+    SimdReg x = LOAD_PS(pointPack.x);
+    SimdReg y = LOAD_PS(pointPack.y);
+    SimdReg z = LOAD_PS(pointPack.z);
+
+    SimdReg one = SET_PS1(1.0f);
+    SimdReg negOne = SET_PS1(-1.0f);
+    SimdReg zero = SET_PS1(0.0f);
+
+    SimdReg scale = SET_PS1(SCALE);
+    SimdReg scaleMinOne = SUB_PS(scale, one);
+
+    SimdReg offset = MUL_PS(one, scaleMinOne);
+
+    SimdReg scalePowAcum = one;
+
+    int n = 0;
+    while(n < ITERATIONS) {
+
+        SimdReg xPlusY = ADD_PS(x, y);
+        SimdReg mask = CMP_LT_PS(xPlusY, zero);
+        SimdReg temp = x;
+        x = BLENDV_PS(x, MUL_PS(negOne, y), mask);
+        y = BLENDV_PS(y, MUL_PS(negOne, temp), mask);
+
+        SimdReg xPlusZ = ADD_PS(x, z);
+        mask = CMP_LT_PS(xPlusZ, zero);
+        temp = x;
+        x = BLENDV_PS(x, MUL_PS(negOne, z), mask);
+        z = BLENDV_PS(z, MUL_PS(negOne, temp), mask);
+
+        SimdReg yPlusZ = ADD_PS(y, z);
+        mask = CMP_LT_PS(yPlusZ, zero);
+        temp = y;
+        y = BLENDV_PS(y, MUL_PS(negOne, z), mask);
+        z = BLENDV_PS(z, MUL_PS(negOne, temp), mask);
+
+        x = SUB_PS(MUL_PS(scale, x), offset);
+        y = SUB_PS(MUL_PS(scale, y), offset);
+        z = SUB_PS(MUL_PS(scale, z), offset);
+
+        n++;
+        scalePowAcum = MUL_PS(scalePowAcum, scale);
+    }
+
+    SimdReg res = MUL_PS(simdLengthPack(x, y, z), DIV_PS(one, scalePowAcum));
     STORE_PS(floatPack, res);
 }
 
@@ -133,5 +192,5 @@ void Scene::sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const {
 }
 
 void Scene::update(float dt) {
-    camera.update(dt);
+    camera->update(dt);
 }

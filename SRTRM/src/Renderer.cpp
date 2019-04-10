@@ -54,7 +54,7 @@ void Renderer::renderFrame(float dt) {
     float yStep = 1.0f / static_cast<float>(renderSettings.height);
 
     Ray ray;
-    ray.origin = scene.camera.getPosition();
+    ray.origin = scene.camera->getPosition();
 
     //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
     //but it's a good order for writing the results to memory
@@ -137,7 +137,7 @@ glm::vec3 Renderer::computeNormal(const glm::vec3 &point) {
 
 Color Renderer::shadeBlinnPhong(const glm::vec3 &point, const glm::vec3 &normal) {
     glm::vec3 L = glm::normalize(-scene.lightDir);
-    glm::vec3 V = glm::normalize(scene.camera.getPosition() - point);
+    glm::vec3 V = glm::normalize(scene.camera->getPosition() - point);
     glm::vec3 H = glm::normalize(L + V);
 
     //TODO: colors hardcoded

@@ -6,10 +6,10 @@
 #include "RenderSettings.h"
 
 
-Window::Window(const RenderSettings &renderSettings) :
+Window::Window(uint32 widthPx, uint32 heightPx) :
     buffer(buffer) {
 
-    std::thread thread(&Window::internalUpdate, this, renderSettings);
+    std::thread thread(&Window::internalUpdate, this, widthPx, heightPx);
     thread.detach();
 }
 
@@ -21,16 +21,15 @@ void Window::notifyUpdate(const byte * const buffer, float dt) {
     mutex.unlock();
 
     if(dt > 0.0f) {
-        frameTimeSum += dt;
-        frameCount++;
+        lastFrameTime = dt;
     }
 }
 
-void Window::internalUpdate(const RenderSettings &renderSettings) {
-    window.create(sf::VideoMode(renderSettings.width, renderSettings.height), TITLE);
-    texture.create(renderSettings.width, renderSettings.height);
+void Window::internalUpdate(uint32 widthPx, uint32 heightPx) {
+    window.create(sf::VideoMode(widthPx, heightPx), TITLE);
+    texture.create(widthPx, heightPx);
 
-    rect.setSize(sf::Vector2f(static_cast<float>(renderSettings.width), static_cast<float>(renderSettings.height)));
+    rect.setSize(sf::Vector2f(static_cast<float>(widthPx), static_cast<float>(heightPx)));
     rect.setTexture(&texture);
     texture.setSrgb(true); //enable conversion to srgb. TODO: change when we do this manually
 
@@ -55,10 +54,9 @@ void Window::internalUpdate(const RenderSettings &renderSettings) {
             window.display();
 
             uint64 showFpsTime = showFpsTimer.getElapsedMiliseconds();
-            if(showFpsTime > 200) {
-                float avgFrameTime = frameTimeSum / static_cast<float>(frameCount);
-                uint32 avgFrameTimeMs = static_cast<uint32>(avgFrameTime * 1000.0f);
-                sf::String title = TITLE + std::to_string(avgFrameTimeMs) + " ms. Avg FPS: " + std::to_string(1.0f / avgFrameTime);
+            if(showFpsTime > 100) {
+                uint32 lastFrameTimeMs = static_cast<uint32>(lastFrameTime * 1000.0f);
+                sf::String title = TITLE + std::to_string(lastFrameTimeMs) + " ms. FPS: " + std::to_string(1.0f / lastFrameTime);
                 window.setTitle(title);
 
                 showFpsTimer.start();

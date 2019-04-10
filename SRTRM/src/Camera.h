@@ -5,14 +5,13 @@
 
 #include <SFML/System/Vector2.hpp>
 
-//TODO: aspect ratio, fov, etc...
 //Camera that rotates around the origin
 class Camera
 {
 public:
-    Camera();
+    Camera(const glm::vec3 &initialPosition, float fovy, uint32 widthPx, uint32 heightPx);
 
-    //Generates world space rays from [0, 1] pixel/screen coords
+    //Generates world space rays from pixel/screen coords
     void generateRayPack(const Point2Pack &pixelCoordsPack, RayPack &outRayPack) const;
     
     void update(float dt);
@@ -20,12 +19,22 @@ public:
     glm::vec3 getPosition() const { return positionWorld; }
 
 private:
+    const glm::vec3 initialPosition;
+    float fovy;
+    float tanHalfFovy;
+    uint32 widthPx, heightPx;
+    float invWidth, invHeight;
+    float aspectRatio;
+
     float yRot = 0.0f;
+    float xRot = 0.0f;
     glm::vec3 positionWorld; //This can be always derived from rotation. It's stored for efficiency.
 
     sf::Vector2i lastCursorPos = {-1, -1};
 
     glm::mat3 cameraToWorldMatrix;
     void updateMatrix();
+
+    static float angleClamp(float r);
 };
 

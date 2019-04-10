@@ -4,18 +4,19 @@
 #include "Renderer.h"
 #include "RendererSimd.h"
 #include "Scene.h"
+#include "Camera.h"
 
 
 int main(int argc, char **argv) {
 
     RenderSettings renderSettings;
-    renderSettings.width = 700;
-    renderSettings.height = 700;
-    renderSettings.rayMarchingSteps = 48;
+    renderSettings.width = 600;
+    renderSettings.height = 400;
+    renderSettings.rayMarchingSteps = 32;
     renderSettings.rayMarchingEpsilon = 0.01f;
     renderSettings.rayMarchingMaxDistance = 10.0f;
 
-    Scene scene;
+    Scene scene(new Camera(glm::vec3(0.0f, 0.0f, -1.0f), 90.0f, renderSettings.width, renderSettings.height));
     Sphere s = {{0.0f, 0.0f, 0.0f}, 0.5f};
     scene.spheres.push_back(s);
 
@@ -25,7 +26,7 @@ int main(int argc, char **argv) {
     Sphere s2 = {{-1.0f, 0.0f, 0.0f}, 0.4f};
     scene.spheres.push_back(s2);
     
-    Window window(renderSettings);
+    Window window(renderSettings.width, renderSettings.height);
     //Renderer renderer(renderSettings, scene, window);
     RendererSimd renderer(renderSettings, scene, window);
 

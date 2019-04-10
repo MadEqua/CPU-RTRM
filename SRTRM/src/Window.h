@@ -12,7 +12,7 @@ struct RenderSettings;
 class Window
 {
 public:
-    Window(const RenderSettings &renderSettings);
+    Window(uint32 widthPx, uint32 heightPx);
 
     void notifyUpdate(const byte * const buffer, float dt);
 
@@ -20,14 +20,13 @@ public:
 
 private:
     //Runs on the internal thread
-    void internalUpdate(const RenderSettings &renderSettings);
+    void internalUpdate(uint32 widthPx, uint32 heightPx);
 
     bool needsRedraw = false;
     const byte *buffer;
     std::mutex mutex;
 
-    float frameTimeSum = 0.0f;
-    uint32 frameCount = 0;
+    float lastFrameTime = 0.0f;
 
     Timer showFpsTimer;
 
@@ -35,6 +34,6 @@ private:
     sf::RenderWindow window;
     sf::Texture texture;
 
-    const sf::String TITLE = "Somewhat Real-Time RayMarcher - Avg frame time: ";
+    const sf::String TITLE = "Somewhat Real-Time RayMarcher - Frame time: ";
 };
 
