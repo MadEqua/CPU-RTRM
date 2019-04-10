@@ -4,18 +4,12 @@
 
 #include "Types.h"
 #include "Simd.h"
+#include "Camera.h"
 
 
 struct Sphere {
     glm::vec3 pos;
     float radius;
-};
-
-//TODO: yeah...
-struct Camera {
-    glm::vec3 pos = {0.0f, 0.0f, 2.0f};
-    glm::vec3 lookAt = {0.0f, 0.0f, 0.0f};
-    glm::vec3 up = {0.0f, 1.0f, 0.0f};
 };
 
 class Scene
@@ -29,6 +23,8 @@ public:
 
     void sdf(const PointPack &pointPack, FloatPack &floatPack) const;
     float sdf(const glm::vec3 &point) const;
+
+    void update(float dt);
 
 private:
     void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;

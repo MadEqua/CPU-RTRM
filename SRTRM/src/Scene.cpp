@@ -131,3 +131,7 @@ void Scene::sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const {
 
     STORE_PS(floatPack, min);
 }
+
+void Scene::update(float dt) {
+    camera.update(dt);
+}

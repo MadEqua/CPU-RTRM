@@ -43,11 +43,14 @@ void RendererSimd::startRenderLoop() {
 }
 
 void RendererSimd::updateData(float dt) {
+    scene.update(dt);
+
+    //TODO: send this update to the scene?
     static float elapsed = 0.0f;
     elapsed += dt;
 
-    scene.lightDir.x = dt * glm::sin(elapsed * 2.0f);
-    scene.lightDir.z = dt * glm::cos(elapsed * 2.0f);
+    //scene.lightDir.x = dt * glm::sin(elapsed * 2.0f);
+    //scene.lightDir.z = dt * glm::cos(elapsed * 2.0f);
 }
 
 void RendererSimd::renderFrame(float dt) {
@@ -56,9 +59,8 @@ void RendererSimd::renderFrame(float dt) {
     float xStep = 1.0f / static_cast<float>(renderSettings.width);
     float yStep = 1.0f / static_cast<float>(renderSettings.height);
 
+    Point2Pack point2Pack;
     RayPack rayPack;
-    rayPack.origin = scene.camera.pos;
-
     CollisionPack collisionPack;
 
     //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
@@ -79,26 +81,18 @@ void RendererSimd::renderFrame(float dt) {
             invertedY[i] = renderSettings.height - y - 1;
         }
 
-        //Transform pixel coords to [0, 1] and then map [-1, 1]
-        SimdRegi dirXi = LOAD_SI(reinterpret_cast<const SimdRegi*>(x));
-        SimdReg dirX = CVT_I_TO_PS(dirXi);
-        dirX = ADD_PS(dirX, SET_PS1(0.5f));
-        dirX = MUL_PS(dirX, SET_PS1(xStep));
-        dirX = MUL_PS(dirX, SET_PS1(2.0f));
-        dirX = SUB_PS(dirX, SET_PS1(1.0f));
+        //Convert to [0, 1] range
+        SimdReg pointX = CVT_I_TO_PS(LOAD_SI(reinterpret_cast<const SimdRegi*>(x)));
+        pointX = ADD_PS(pointX, SET_PS1(0.5f)); //use the pixel center
+        pointX = MUL_PS(pointX, SET_PS1(yStep));
+        
+        SimdReg pointY = CVT_I_TO_PS(LOAD_SI(reinterpret_cast<const SimdRegi*>(invertedY)));
+        pointY = ADD_PS(pointY, SET_PS1(0.5f));
+        pointY = MUL_PS(pointY, SET_PS1(yStep));
 
-        SimdRegi dirYi = LOAD_SI(reinterpret_cast<const SimdRegi*>(invertedY));
-        SimdReg dirY = CVT_I_TO_PS(dirYi);
-        dirY = ADD_PS(dirY, SET_PS1(0.5f));
-        dirY = MUL_PS(dirY, SET_PS1(yStep));
-        dirY = MUL_PS(dirY, SET_PS1(2.0f));
-        dirY = SUB_PS(dirY, SET_PS1(1.0f));
-
-        SimdReg dirZ = SET_PS1(-1.0f); //TODO: have a "real" camera instead of adjusting this
-        simdNormalizePack(dirX, dirY, dirZ);
-        STORE_PS(rayPack.dirX, dirX);
-        STORE_PS(rayPack.dirY, dirY);
-        STORE_PS(rayPack.dirZ, dirZ);
+        STORE_PS(point2Pack.x, pointX);
+        STORE_PS(point2Pack.y, pointY);
+        scene.camera.generateRayPack(point2Pack, rayPack);
 
 
         int collisionMask = raymarch(rayPack, collisionPack);
@@ -296,9 +290,9 @@ void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack
     SimdReg difB = MUL_PS(SET_PS1(0.0f), diffuseTerm);
 
 
-    SimdReg Vx = SUB_PS(SET_PS1(scene.camera.pos.x), LOAD_PS(collisionPack.pointX));
-    SimdReg Vy = SUB_PS(SET_PS1(scene.camera.pos.y), LOAD_PS(collisionPack.pointY));
-    SimdReg Vz = SUB_PS(SET_PS1(scene.camera.pos.z), LOAD_PS(collisionPack.pointZ));
+    SimdReg Vx = SUB_PS(SET_PS1(scene.camera.getPosition().x), LOAD_PS(collisionPack.pointX));
+    SimdReg Vy = SUB_PS(SET_PS1(scene.camera.getPosition().y), LOAD_PS(collisionPack.pointY));
+    SimdReg Vz = SUB_PS(SET_PS1(scene.camera.getPosition().z), LOAD_PS(collisionPack.pointZ));
     simdNormalizePack(Vx, Vy, Vz);
 
     SimdReg Hx = ADD_PS(Lx, Vx);

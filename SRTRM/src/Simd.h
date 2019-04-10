@@ -132,12 +132,20 @@ struct PointPackT {
     float z[N];
 };
 
+template <byte N>
+struct Point2PackT {
+    float x[N];
+    float y[N];
+};
+
 using RayPack = RayPackT<SIMD_SIZE>;
 using CollisionPack = CollisionPackT<SIMD_SIZE>;
 using PointPack = PointPackT<SIMD_SIZE>;
+using Point2Pack = Point2PackT<SIMD_SIZE>;
 using VectorPack = PointPackT<SIMD_SIZE>;
 using ColorPack = PointPackT<SIMD_SIZE>;
 using FloatPack = float[SIMD_SIZE];
+using IntPack = int[SIMD_SIZE];
 
 
 __forceinline SimdReg simdLengthPack(SimdReg x, SimdReg y, SimdReg z) {
