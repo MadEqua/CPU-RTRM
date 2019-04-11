@@ -32,8 +32,8 @@ public:
     void update(float dt);
 
 private:
+    //void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
     void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
-    void fractalSdf2(const PointPack &pointPack, FloatPack &floatPack) const;
     SimdReg fractalShape(SimdReg x, SimdReg y, SimdReg z) const;
 
     void sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const;

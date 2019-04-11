@@ -4,38 +4,10 @@
 
 Scene::Scene(Camera *camera) :
     camera(camera) {
+    initSimdConstants();
 }
 
 void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
-    /*SimdReg min = SET_PS1(std::numeric_limits<float>().max());
-
-    SimdReg x = LOAD_PS(pointPack.x);
-    SimdReg y = LOAD_PS(pointPack.y);
-    SimdReg z = LOAD_PS(pointPack.z);
-
-    for(const auto &sphere : spheres) {
-        SimdReg sphX = SET_PS1(sphere.pos.x);
-        SimdReg sphY = SET_PS1(sphere.pos.y);
-        SimdReg sphZ = SET_PS1(sphere.pos.z);
-
-        //Compute distance between points and sphere
-        SimdReg difX = SUB_PS(x, sphX);
-        SimdReg difY = SUB_PS(y, sphY);
-        SimdReg difZ = SUB_PS(z, sphZ);
-
-        SimdReg difXSq = MUL_PS(difX, difX);
-        SimdReg difYSq = MUL_PS(difY, difY);
-        SimdReg difZSq = MUL_PS(difZ, difZ);
-        SimdReg distanceSq = ADD_PS(difXSq, ADD_PS(difYSq, difZSq));
-        SimdReg distanceToCenter = SQRT_PS(distanceSq);
-        SimdReg distance = SUB_PS(distanceToCenter, SET_PS1(sphere.radius));
-
-        SimdReg distSmallerThanMinMask = CMP_LT_PS(distance, min);
-        min = BLENDV_PS(min, distance, distSmallerThanMinMask);
-    }
-    
-    STORE_PS(floatPack, min);*/
-
     fractalSdf(pointPack, floatPack);
 }
 
@@ -50,20 +22,21 @@ float Scene::sdf(const glm::vec3 &point) const {
     return min;
 }
 
- void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
+/*void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
     const int ITERATIONS = 6;
-    const float SCALE = 2.0f;
+
+    //Huge performance boost by prefetching the constants block
+    PREFETCH(reinterpret_cast<char*>(&SIMD_CONSTANTS), _MM_HINT_T0);
     
     SimdReg x = LOAD_PS(pointPack.x);
     SimdReg y = LOAD_PS(pointPack.y);
     SimdReg z = LOAD_PS(pointPack.z);
 
-    SimdReg one = SET_PS1(1.0f);
-    SimdReg negOne = SET_PS1(-1.0f);
+    SimdReg zero = SET_ZERO_PS();
+    SimdReg negOne = LOAD_PS(&SIMD_CONSTANTS[0]);
+    SimdReg one = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE]);
 
-    SimdReg scale = SET_PS1(SCALE);
-    SimdReg scaleMinOne = SUB_PS(scale, one);
-
+    SimdReg scale = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE * 2]);
     SimdReg scalePowAcum = one;
 
     int n = 0;
@@ -96,9 +69,9 @@ float Scene::sdf(const glm::vec3 &point) const {
         cZ = BLENDV_PS(cZ, negOne, dLtDistMask);
         dist = BLENDV_PS(dist, d, dLtDistMask);
 
-        x = SUB_PS(MUL_PS(scale, x), MUL_PS(cX, scaleMinOne));
-        y = SUB_PS(MUL_PS(scale, y), MUL_PS(cY, scaleMinOne));
-        z = SUB_PS(MUL_PS(scale, z), MUL_PS(cZ, scaleMinOne));
+        x = SUB_PS(MUL_PS(scale, x), cX);
+        y = SUB_PS(MUL_PS(scale, y), cY);
+        z = SUB_PS(MUL_PS(scale, z), cZ);
 
         n++;
         scalePowAcum = MUL_PS(scalePowAcum, scale);
@@ -106,64 +79,60 @@ float Scene::sdf(const glm::vec3 &point) const {
 
     SimdReg res = MUL_PS(fractalShape(x, y, z), DIV_PS(one, scalePowAcum));
     STORE_PS(floatPack, res);
-}
+}*/
 
-void Scene::fractalSdf2(const PointPack &pointPack, FloatPack &floatPack) const {
-    const int ITERATIONS = 8;
-    const float SCALE = 2.0f;
+void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
+    const int ITERATIONS = 4;
+
+    //Huge performance boost by prefetching the constants block
+    PREFETCH(reinterpret_cast<char*>(&SIMD_CONSTANTS), _MM_HINT_T0);
 
     SimdReg x = LOAD_PS(pointPack.x);
     SimdReg y = LOAD_PS(pointPack.y);
     SimdReg z = LOAD_PS(pointPack.z);
 
-    SimdReg one = SET_PS1(1.0f);
-    SimdReg negOne = SET_PS1(-1.0f);
     SimdReg zero = SET_ZERO_PS();
+    SimdReg negOne = LOAD_PS(&SIMD_CONSTANTS[0]);
+    SimdReg one = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE]);
 
-    SimdReg scale = SET_PS1(SCALE);
-    SimdReg scaleMinOne = SUB_PS(scale, one);
-
-    SimdReg offset = MUL_PS(one, scaleMinOne);
-
+    SimdReg scale = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE * 2]);
     SimdReg scalePowAcum = one;
 
     int n = 0;
     while(n < ITERATIONS) {
-
-        SimdReg xPlusY = ADD_PS(x, y);
-        SimdReg mask = CMP_LT_PS(xPlusY, zero);
+        SimdReg mask = CMP_LT_PS(ADD_PS(x, y), zero);
         SimdReg temp = x;
         x = BLENDV_PS(x, MUL_PS(negOne, y), mask);
         y = BLENDV_PS(y, MUL_PS(negOne, temp), mask);
 
-        SimdReg xPlusZ = ADD_PS(x, z);
-        mask = CMP_LT_PS(xPlusZ, zero);
+        mask = CMP_LT_PS(ADD_PS(x, z), zero);
         temp = x;
         x = BLENDV_PS(x, MUL_PS(negOne, z), mask);
         z = BLENDV_PS(z, MUL_PS(negOne, temp), mask);
 
-        SimdReg yPlusZ = ADD_PS(y, z);
-        mask = CMP_LT_PS(yPlusZ, zero);
+        mask = CMP_LT_PS(ADD_PS(y, z), zero);
         temp = y;
         y = BLENDV_PS(y, MUL_PS(negOne, z), mask);
         z = BLENDV_PS(z, MUL_PS(negOne, temp), mask);
 
-        x = SUB_PS(MUL_PS(scale, x), offset);
-        y = SUB_PS(MUL_PS(scale, y), offset);
-        z = SUB_PS(MUL_PS(scale, z), offset);
+        x = SUB_PS(MUL_PS(scale, x), one);
+        y = SUB_PS(MUL_PS(scale, y), one);
+        z = SUB_PS(MUL_PS(scale, z), one);
 
         n++;
         scalePowAcum = MUL_PS(scalePowAcum, scale);
     }
 
-    SimdReg res = MUL_PS(fractalShape(x, y, z), DIV_PS(one, scalePowAcum));
+    SimdReg shape = fractalShape(x, y, z);
+    SimdReg res = MUL_PS(shape, DIV_PS(one, scalePowAcum));
     STORE_PS(floatPack, res);
 }
 
 SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) const {
-    static SimdReg invSqrtThree = DIV_PS(SET_PS1(1.0f), SQRT_PS(SET_PS1(3.0f)));
+    SimdReg negOne = LOAD_PS(&SIMD_CONSTANTS[0]);
+    SimdReg one = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE]);
+    SimdReg invSqrtThree = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE * 3]);
 
-    SimdReg negOne = SET_PS1(-1.0f);
     SimdReg xNeg = MUL_PS(x, negOne);
     SimdReg yNeg = MUL_PS(y, negOne);
     SimdReg zNeg = MUL_PS(z, negOne);
@@ -173,7 +142,7 @@ SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) const {
     SimdReg max2 = MAX_PS(ADD_PS(xNeg, ADD_PS(y, z)),
                           ADD_PS(x, ADD_PS(yNeg, z)));
     SimdReg max = MAX_PS(max1, max2);
-    SimdReg res = SUB_PS(max, SET_PS1(1.0f));
+    SimdReg res = SUB_PS(max, one);
     return MUL_PS(invSqrtThree, res);
 }
 

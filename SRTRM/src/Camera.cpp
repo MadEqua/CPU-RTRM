@@ -71,8 +71,8 @@ void Camera::update(float dt) {
             auto diff = lastCursorPos - curCursorPos;
             if(xMov)
                 yRot = glm::clamp(yRot - diff.x, -180.0f, 179.9f);
-            if(yMov)
-                xRot = glm::clamp(xRot + diff.y, 0.0f, 180.0f);
+            /*if(yMov)
+                xRot = glm::clamp(xRot + diff.y, 0.0f, 90.0f);*/
             updateMatrix();
         }
         lastCursorPos = curCursorPos;
@@ -81,8 +81,11 @@ void Camera::update(float dt) {
         auto curCursorPos = sf::Mouse::getPosition();
         if(lastCursorPos.y != -1) {
             auto diff = lastCursorPos.y - curCursorPos.y;
-            initialPositionZ = glm::max(0.05f, initialPositionZ - diff * 0.01f);
-            updateMatrix();
+            auto newPos = initialPositionZ + diff * 0.01f;
+            if(glm::sign(newPos) == glm::sign(initialPositionZ)) {
+                initialPositionZ = newPos;
+                updateMatrix();
+            }
         }
         lastCursorPos = curCursorPos;
     }

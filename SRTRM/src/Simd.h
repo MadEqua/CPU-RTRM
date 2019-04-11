@@ -109,6 +109,8 @@
 
 #endif
 
+#define PREFETCH _mm_prefetch
+
 
 #include <glm/glm.hpp>
 #include "Types.h"
@@ -195,3 +197,10 @@ SimdReg simdLog(SimdReg x);
 __forceinline SimdReg simdPow(SimdReg x, SimdReg y) {
     return simdExp(MUL_PS(simdLog(x), y));
 }
+
+
+//Place to store constants to go into SimdRegisters (SET_PS1). 
+//The compiler would place those constants somewhere on the globals memory, but without any pattern.
+//This brings a *big* performance boost on functions that need to load many constants, especially with a smart use of memory prefetching.
+extern float SIMD_CONSTANTS[];
+void initSimdConstants();

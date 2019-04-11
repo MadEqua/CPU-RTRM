@@ -10,7 +10,7 @@
 int main(int argc, char **argv) {
 
     RenderSettings renderSettings;
-    renderSettings.width = 800;
+    renderSettings.width = 600;
     renderSettings.height = 600;
     renderSettings.rayMarchingSteps = 32;
     renderSettings.rayMarchingEpsilon = 0.01f;

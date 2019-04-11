@@ -74,3 +74,16 @@ SimdReg simdLog(SimdReg x) {
     p = MUL_PS(p, SUB_PS(m, one));
     return ADD_PS(p, e);
 }
+
+
+float SIMD_CONSTANTS[SIMD_SIZE * 4];
+
+void initSimdConstants() {
+    const float VALUES[] = {-1.0f, 1.0f, 2.0f, 0.57735026918962576450914878050196f /*1 / sqrt(3)*/};
+
+    for(int i = 0; i < sizeof(VALUES) / sizeof(float); ++i) {
+        for(int j = 0; j < SIMD_SIZE; ++j) {
+            SIMD_CONSTANTS[i * SIMD_SIZE + j] = VALUES[i];
+        }
+    }
+}

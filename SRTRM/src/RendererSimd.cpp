@@ -22,6 +22,8 @@ RendererSimd::RendererSimd(const RenderSettings &renderSettings, Scene &scene, W
 
     //SFML requires RGBA :(
     byteData = new byte[renderSettings.width * renderSettings.height * 4u];
+
+    initSimdConstants();
 }
 
 RendererSimd::~RendererSimd() {
@@ -98,17 +100,17 @@ void RendererSimd::renderFrame(float dt) {
                 *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
 
                 ColorPack colorPack;
-                //shadeBlinnPhong(collisionPack, colorPack);
-                shadeSteps(collisionPack, colorPack);
+                shadeBlinnPhong(collisionPack, colorPack);
+                //shadeSteps(collisionPack, colorPack);
 
                 *(ptr + (i * 3) + 0) = colorPack.x[i];
                 *(ptr + (i * 3) + 1) = colorPack.y[i];
                 *(ptr + (i * 3) + 2) = colorPack.z[i];
             }
             else {
-                *(ptr + (i * 3) + 0) = 0.5f;
-                *(ptr + (i * 3) + 1) = 0.5f;
-                *(ptr + (i * 3) + 2) = 0.5f;
+                *(ptr + (i * 3) + 0) = 135.0f / 256.0f;
+                *(ptr + (i * 3) + 1) = 206.0f / 256.0f;
+                *(ptr + (i * 3) + 2) = 235.0f / 256.0f;
             }
         }
     }
