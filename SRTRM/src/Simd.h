@@ -109,7 +109,7 @@
 
 #endif
 
-#define PREFETCH _mm_prefetch
+#define PREFETCH_T0(ptr) _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0)
 
 
 #include <glm/glm.hpp>

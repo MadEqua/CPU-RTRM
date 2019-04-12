@@ -33,4 +33,8 @@ private:
 
     float *data;
     byte *byteData; //TODO : have this outside on a "converter" from float to byte. Tone mapping?
+
+    //Lookup tables for converting pixel number to [x, y] coord.
+    float *pixelToX;
+    float *pixelToY;
 };

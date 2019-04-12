@@ -85,7 +85,7 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
     const int ITERATIONS = 4;
 
     //Huge performance boost by prefetching the constants block
-    PREFETCH(reinterpret_cast<char*>(&SIMD_CONSTANTS), _MM_HINT_T0);
+    PREFETCH_T0(&SIMD_CONSTANTS);
 
     SimdReg x = LOAD_PS(pointPack.x);
     SimdReg y = LOAD_PS(pointPack.y);

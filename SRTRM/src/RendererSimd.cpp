@@ -23,12 +23,28 @@ RendererSimd::RendererSimd(const RenderSettings &renderSettings, Scene &scene, W
     //SFML requires RGBA :(
     byteData = new byte[renderSettings.width * renderSettings.height * 4u];
 
+
+    pixelToX = new float[pixelCount];
+    pixelToY = new float[pixelCount];
+    for(uint32 px = 0; px < pixelCount; px++) {
+        //Compute pixel coordinate of the current pixel
+        pixelToX[px] = static_cast<float>(px  % renderSettings.width);
+
+        uint32 y = px / renderSettings.width;
+
+        //The y=0 pixel should be the bottom of the image
+        pixelToY[px] = static_cast<float>(renderSettings.height - y - 1);
+    }
+
     initSimdConstants();
 }
 
 RendererSimd::~RendererSimd() {
     delete[] data;
     delete[] byteData;
+
+    delete[] pixelToX;
+    delete[] pixelToY;
 }
 
 void RendererSimd::startRenderLoop() {
@@ -56,7 +72,7 @@ void RendererSimd::updateData(float dt) {
 }
 
 void RendererSimd::renderFrame(float dt) {
-    uint32 pixelCount = renderSettings.width * renderSettings.height;
+    const uint32 pixelCount = renderSettings.width * renderSettings.height;
 
     Point2Pack point2Pack;
     RayPack rayPack;
@@ -66,27 +82,10 @@ void RendererSimd::renderFrame(float dt) {
     //but it's a good order for writing the results to memory
     for(uint32 px = 0; px < pixelCount; px += SIMD_SIZE) {
 
-        uint32 x[SIMD_SIZE];
-        uint32 invertedY[SIMD_SIZE];
+        memcpy(point2Pack.x, &pixelToX[px], SIMD_SIZE * sizeof(float));
+        memcpy(point2Pack.y, &pixelToY[px], SIMD_SIZE * sizeof(float));
 
-        //TODO: is this performant enough?
-        for(uint32 i = 0; i < SIMD_SIZE; ++i) {
-            //Compute pixel coordinate of the current pixel
-            x[i] = (px + i) % renderSettings.width;
-            
-            uint32 y = (px + i) / renderSettings.width;
-
-            //The y=0 pixel should be the bottom of the image
-            invertedY[i] = renderSettings.height - y - 1;
-        }
-
-        //Batch convert to float
-        SimdReg pointX = CVT_I_TO_PS(LOAD_SI(reinterpret_cast<const SimdRegi*>(x)));
-        SimdReg pointY = CVT_I_TO_PS(LOAD_SI(reinterpret_cast<const SimdRegi*>(invertedY)));
-        STORE_PS(point2Pack.x, pointX);
-        STORE_PS(point2Pack.y, pointY);
         scene.camera->generateRayPack(point2Pack, rayPack);
-
 
         int collisionMask = raymarch(rayPack, collisionPack);
         float *ptr = data + px * 3;
@@ -128,24 +127,22 @@ void RendererSimd::renderFrame(float dt) {
 }
 
 int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack) {
-    
-    SimdReg t = SET_ZERO_PS();
-    SimdReg rayOriginX = SET_PS1(rayPack.origin.x);
-    SimdReg rayOriginY = SET_PS1(rayPack.origin.y);
-    SimdReg rayOriginZ = SET_PS1(rayPack.origin.z);
-    SimdReg steps = SET_ZERO_PS();
 
     const int ALL_ONES_MASK = (1 << SIMD_SIZE) - 1;
+    int lastCollidedMask = 0;
     int collidedMask = 0;
 
     collisionPack = {0};
 
+    SimdReg t = SET_ZERO_PS();
+    SimdReg steps = SET_ZERO_PS();
+
     for(uint32 i = 0; i < renderSettings.rayMarchingSteps; ++i) {
-       
+
         //Walk along the rays
-        SimdReg pointX = ADD_PS(rayOriginX, MUL_PS(LOAD_PS(rayPack.directions.x), t));
-        SimdReg pointY = ADD_PS(rayOriginY, MUL_PS(LOAD_PS(rayPack.directions.y), t));
-        SimdReg pointZ = ADD_PS(rayOriginZ, MUL_PS(LOAD_PS(rayPack.directions.z), t));
+        SimdReg pointX = ADD_PS(SET_PS1(rayPack.origin.x), MUL_PS(LOAD_PS(rayPack.directions.x), t));
+        SimdReg pointY = ADD_PS(SET_PS1(rayPack.origin.y), MUL_PS(LOAD_PS(rayPack.directions.y), t));
+        SimdReg pointZ = ADD_PS(SET_PS1(rayPack.origin.z), MUL_PS(LOAD_PS(rayPack.directions.z), t));
 
         PointPack pointPack;
         STORE_PS(pointPack.x, pointX);
@@ -156,13 +153,13 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
         scene.sdf(pointPack, distances);
 
         SimdReg dists = LOAD_PS(distances);
-        SimdReg epsilon = SET_PS1(renderSettings.rayMarchingEpsilon);
-        SimdReg maskEpsilon = CMP_LT_PS(dists, epsilon);
+        SimdReg maskEpsilon = CMP_LT_PS(dists, SET_PS1(renderSettings.rayMarchingEpsilon));
 
         //If there is a collision (dist < epsilon) the mask will be != 0
-        //Using a branch here because we really want to avoid computing normals when we can
         collidedMask = MOVE_MASK_PS(maskEpsilon);
-        if(collidedMask) {
+        if(collidedMask != lastCollidedMask) {
+            lastCollidedMask = collidedMask;
+
             STORE_PS(collisionPack.points.x, pointX);
             STORE_PS(collisionPack.points.y, pointY);
             STORE_PS(collisionPack.points.z, pointZ);
@@ -176,8 +173,7 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
         }
 
         //Check if there is a ray that exceeded max distance
-        SimdReg maxDist = SET_PS1(renderSettings.rayMarchingMaxDistance);
-        SimdReg maskMax = CMP_GT_PS(dists, maxDist);
+        SimdReg maskMax = CMP_GT_PS(dists, SET_PS1(renderSettings.rayMarchingMaxDistance));
         int reachedMaxMask = MOVE_MASK_PS(maskEpsilon);
 
         //If every ray has exceeded maximum distance
@@ -186,13 +182,13 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
         }
 
         //make sure to not move t for "finished" rays
-        SimdReg combinedMask = OR_PS(maskEpsilon, maskMax);
-        SimdReg maskedDists = NOT_AND_PS(combinedMask, dists);
-        SimdReg maskedStepIncrement = NOT_AND_PS(combinedMask, SET_PS1(1.0f));
+        SimdReg combinedFinishedMask = OR_PS(maskEpsilon, maskMax);
+        SimdReg maskedDists = NOT_AND_PS(combinedFinishedMask, dists);
+        SimdReg maskedSteps = NOT_AND_PS(combinedFinishedMask, SET_PS1(1.0f));
         
         //Move t by the distances. Finished rays were masked out and will not change
         t = ADD_PS(t, maskedDists);
-        steps = ADD_PS(steps, maskedStepIncrement);
+        steps = ADD_PS(steps, maskedSteps);
     }
 
     return collidedMask;
