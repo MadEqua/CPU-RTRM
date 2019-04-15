@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mutex>
+#include <condition_variable>
 
 #include <SFML/Graphics.hpp>
 
@@ -25,9 +26,9 @@ private:
     bool needsRedraw = false;
     const byte *buffer;
     std::mutex mutex;
+    std::condition_variable cv;
 
     float lastFrameTime = 0.0f;
-
     Timer showFpsTimer;
 
     sf::RectangleShape rect;
