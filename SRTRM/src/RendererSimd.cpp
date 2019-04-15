@@ -62,13 +62,6 @@ void RendererSimd::startRenderLoop() {
 
 void RendererSimd::updateData(float dt) {
     scene.update(dt);
-
-    //TODO: send this update to the scene?
-    static float elapsed = 0.0f;
-    elapsed += dt;
-
-    //scene.lightDir.x = dt * glm::sin(elapsed * 2.0f);
-    //scene.lightDir.z = dt * glm::cos(elapsed * 2.0f);
 }
 
 void RendererSimd::renderFrame(float dt) {
@@ -90,17 +83,18 @@ void RendererSimd::renderFrame(float dt) {
         int collisionMask = raymarch(rayPack, collisionPack);
         float *ptr = data + px * 3;
 
-        //TODO: is this performant enough?
-        for(uint32 i = 0; i < SIMD_SIZE; ++i) {
+        ColorPack colorPack;
 
+        if(collisionMask) {
+            shadeBlinnPhong(collisionPack, colorPack);
+            //shadeSteps(collisionPack, colorPack);
+        }
+        
+        for(uint32 i = 0; i < SIMD_SIZE; ++i) {
             if(collisionMask & (1 << i)) {
                 /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
                 *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
                 *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
-
-                ColorPack colorPack;
-                shadeBlinnPhong(collisionPack, colorPack);
-                //shadeSteps(collisionPack, colorPack);
 
                 *(ptr + (i * 3) + 0) = colorPack.x[i];
                 *(ptr + (i * 3) + 1) = colorPack.y[i];

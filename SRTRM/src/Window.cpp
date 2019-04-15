@@ -17,13 +17,13 @@ void Window::notifyUpdate(const byte * const buffer, float dt) {
         std::lock_guard<std::mutex> lock(mutex);
         needsRedraw = true;
         this->buffer = buffer;
+
+        if(dt > 0.0f) {
+            lastFrameTime = dt;
+        }
     }
 
     cv.notify_one();
-
-    if(dt > 0.0f) {
-        lastFrameTime = dt;
-    }
 }
 
 void Window::internalUpdate(uint32 widthPx, uint32 heightPx) {
