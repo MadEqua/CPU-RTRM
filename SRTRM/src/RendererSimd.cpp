@@ -62,16 +62,20 @@ void RendererSimd::startRenderLoop() {
         float dt = frameTimer.getElapsedSeconds();
         frameTimer.start();
 
-        updateData(dt);
         {
             std::lock_guard<std::mutex> lock(mutexUpdate);
+            updateData(dt);
             updateFinished = true;
         }
+
+        nextPack.store(0);
         updateFinishedCv.notify_all();
 
-        std::unique_lock<std::mutex> lock(mutexRender);
-        renderFinishedCv.wait(lock, [this] { return workersFinished == renderSettings.workerThreads; });
-        workersFinished = 0;
+        {
+            std::unique_lock<std::mutex> lock(mutexRender);
+            workersFinished = 0;
+            renderFinishedCv.wait(lock, [this] { return workersFinished == renderSettings.workerThreads; });
+        }
 
         //RGB float -> RGBA byte (missing srgb conversion/ tone mapping)
         for(uint32 px = 0; px < pixelCount; ++px) {
@@ -97,17 +101,20 @@ void RendererSimd::renderTask() {
     RayPack rayPack;
     CollisionPack collisionPack;
 
-    int batchCount = pixelCount / SIMD_SIZE;
+    int packCount = pixelCount / SIMD_SIZE;
 
     while(window.isOpen()) {
         //Wait for update finish to start rendering
-        std::unique_lock<std::mutex> lock(mutexUpdate);
-        updateFinishedCv.wait(lock, [this] { return updateFinished; });
-        nextBatch = 0;
+        {
+            std::unique_lock<std::mutex> lock(mutexUpdate);
+            updateFinished = false;
+            updateFinishedCv.wait(lock, [this] { return updateFinished; });
+        }
 
-        while(nextBatch < batchCount) {
-            uint32 startPx = nextBatch * SIMD_SIZE;
-            nextBatch++;
+        for(int currentPack = nextPack.load(); 
+            currentPack < packCount; 
+            currentPack = nextPack.fetch_add(1) + 1) {
+            uint32 startPx = currentPack * SIMD_SIZE;
 
             //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
             //but it's a good order for writing the results to memory
@@ -146,8 +153,6 @@ void RendererSimd::renderTask() {
                 }
             }
         }
-
-        updateFinished = false;
 
         {
             std::lock_guard<std::mutex> lock(mutexRender);

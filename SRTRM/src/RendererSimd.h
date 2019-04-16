@@ -40,7 +40,7 @@ private:
     const uint32 pixelCount;
 
     std::vector<std::thread> workerPool;
-    std::atomic<int> nextBatch;
+    std::atomic<int> nextPack;
     std::mutex mutexUpdate;
     std::condition_variable updateFinishedCv;
     bool updateFinished = false;
