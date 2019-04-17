@@ -1,17 +1,15 @@
 #include "RendererSimd.h"
 
-#include <chrono>
-
 #include <glm/glm.hpp>
 
 #include "Scene.h"
 #include "Window.h"
 
-
 RendererSimd::RendererSimd(const RenderSettings &renderSettings, Scene &scene, Window &window) :
     renderSettings(renderSettings),
     scene(scene),
-    window(window) {
+    window(window),
+    pixelCount(renderSettings.width * renderSettings.height) {
 
     uint32 pixelCount = renderSettings.width * renderSettings.height;
     //Add some dummy data to be a multiple of SIMD_SIZE
@@ -49,13 +47,44 @@ RendererSimd::~RendererSimd() {
 
 void RendererSimd::startRenderLoop() {
     while(!window.isOpen())
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::yield();
+
+    workerPool.resize(renderSettings.renderThreads);
+    for(int i = 0; i < renderSettings.renderThreads; ++i) {
+        workerPool[i] = std::thread(&RendererSimd::renderTask, this);
+        workerPool[i].detach();
+    }
     
     while(window.isOpen()) {
         float dt = frameTimer.getElapsedSeconds();
         frameTimer.start();
-        updateData(dt);
-        renderFrame(dt);
+
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            updateData(dt);
+            updateFinished = true;
+            workersFinished = 0;
+        }
+
+        nextPack.store(0);
+        updateFinishedCv.notify_all();
+
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            renderFinishedCv.wait(lock, [this] { return workersFinished == renderSettings.renderThreads; });
+        }
+
+        //RGB float -> RGBA byte (missing srgb conversion/ tone mapping)
+        for(uint32 px = 0; px < pixelCount; ++px) {
+            float *src = data + (px * 3u);
+            byte *dst = byteData + (px * 4u);
+
+            *(dst + 0) = static_cast<byte>(glm::clamp(*(src + 0) * 255.0f, 0.0f, 255.0f));
+            *(dst + 1) = static_cast<byte>(glm::clamp(*(src + 1) * 255.0f, 0.0f, 255.0f));
+            *(dst + 2) = static_cast<byte>(glm::clamp(*(src + 2) * 255.0f, 0.0f, 255.0f));
+            *(dst + 3) = 255;
+        }
+
         window.notifyUpdate(byteData, dt);
     }
 }
@@ -64,59 +93,67 @@ void RendererSimd::updateData(float dt) {
     scene.update(dt);
 }
 
-void RendererSimd::renderFrame(float dt) {
-    const uint32 pixelCount = renderSettings.width * renderSettings.height;
-
+void RendererSimd::renderTask() {
     Point2Pack point2Pack;
     RayPack rayPack;
     CollisionPack collisionPack;
 
-    //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
-    //but it's a good order for writing the results to memory
-    for(uint32 px = 0; px < pixelCount; px += SIMD_SIZE) {
+    int packCount = pixelCount / SIMD_SIZE;
 
-        memcpy(point2Pack.x, &pixelToX[px], SIMD_SIZE * sizeof(float));
-        memcpy(point2Pack.y, &pixelToY[px], SIMD_SIZE * sizeof(float));
-
-        scene.camera->generateRayPack(point2Pack, rayPack);
-
-        int collisionMask = raymarch(rayPack, collisionPack);
-        float *ptr = data + px * 3;
-
-        ColorPack colorPack;
-
-        if(collisionMask) {
-            shadeBlinnPhong(collisionPack, colorPack);
-            //shadeSteps(collisionPack, colorPack);
+    while(window.isOpen()) {
+        //Wait for update finish to start rendering
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            updateFinishedCv.wait(lock, [this] { return updateFinished; });
         }
-        
-        for(uint32 i = 0; i < SIMD_SIZE; ++i) {
-            if(collisionMask & (1 << i)) {
-                /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
-                *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
-                *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
 
-                *(ptr + (i * 3) + 0) = colorPack.x[i];
-                *(ptr + (i * 3) + 1) = colorPack.y[i];
-                *(ptr + (i * 3) + 2) = colorPack.z[i];
+        //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
+        //but it's a good order for writing the results to memory
+        for(int currentPack = nextPack.load(); 
+            currentPack < packCount; 
+            currentPack = nextPack.fetch_add(1) + 1) {
+            uint32 startPx = currentPack * SIMD_SIZE;
+
+            memcpy(point2Pack.x, &pixelToX[startPx], SIMD_SIZE * sizeof(float));
+            memcpy(point2Pack.y, &pixelToY[startPx], SIMD_SIZE * sizeof(float));
+
+            scene.camera->generateRayPack(point2Pack, rayPack);
+
+            int collisionMask = raymarch(rayPack, collisionPack);
+            float *ptr = data + startPx * 3;
+
+            ColorPack colorPack;
+
+            if(collisionMask) {
+                shadeBlinnPhong(collisionPack, colorPack);
+                //shadeSteps(collisionPack, colorPack);
             }
-            else {
-                *(ptr + (i * 3) + 0) = 135.0f / 256.0f;
-                *(ptr + (i * 3) + 1) = 206.0f / 256.0f;
-                *(ptr + (i * 3) + 2) = 235.0f / 256.0f;
+
+            for(uint32 i = 0; i < SIMD_SIZE; ++i) {
+
+                if(collisionMask & (1 << i)) {
+                    /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
+                    *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
+                    *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
+
+                    *(ptr + (i * 3) + 0) = colorPack.x[i];
+                    *(ptr + (i * 3) + 1) = colorPack.y[i];
+                    *(ptr + (i * 3) + 2) = colorPack.z[i];
+                }
+                else {
+                    *(ptr + (i * 3) + 0) = 135.0f / 256.0f;
+                    *(ptr + (i * 3) + 1) = 206.0f / 256.0f;
+                    *(ptr + (i * 3) + 2) = 235.0f / 256.0f;
+                }
             }
         }
-    }
 
-    //RGB float -> RGBA byte (missing srgb conversion/ tone mapping)
-    for(uint32 px = 0; px < pixelCount; ++px) {
-        float *src = data + (px * 3u);
-        byte *dst = byteData + (px * 4u);
-
-        *(dst + 0) = static_cast<byte>(glm::clamp(*(src + 0) * 255.0f, 0.0f, 255.0f));
-        *(dst + 1) = static_cast<byte>(glm::clamp(*(src + 1) * 255.0f, 0.0f, 255.0f));
-        *(dst + 2) = static_cast<byte>(glm::clamp(*(src + 2) * 255.0f, 0.0f, 255.0f));
-        *(dst + 3) = 255;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            workersFinished++;
+            updateFinished = false;
+        }
+        renderFinishedCv.notify_all();
     }
 }
 

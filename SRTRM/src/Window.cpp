@@ -55,7 +55,7 @@ void Window::internalUpdate(uint32 widthPx, uint32 heightPx) {
         window.display();
 
         uint64 showFpsTime = showFpsTimer.getElapsedMiliseconds();
-        if(showFpsTime > 100) {
+        if(showFpsTime > 150) {
             uint32 lastFrameTimeMs = static_cast<uint32>(lastFrameTime * 1000.0f);
             sf::String title = TITLE + std::to_string(lastFrameTimeMs) + " ms. FPS: " + std::to_string(1.0f / lastFrameTime);
             window.setTitle(title);
