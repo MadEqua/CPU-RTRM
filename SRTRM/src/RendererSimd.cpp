@@ -52,8 +52,8 @@ void RendererSimd::startRenderLoop() {
     while(!window.isOpen())
         std::this_thread::yield();
 
-    workerPool.resize(renderSettings.workerThreads);
-    for(int i = 0; i < renderSettings.workerThreads; ++i) {
+    workerPool.resize(renderSettings.renderThreads);
+    for(int i = 0; i < renderSettings.renderThreads; ++i) {
         workerPool[i] = std::thread(&RendererSimd::renderTask, this);
         workerPool[i].detach();
     }
@@ -63,18 +63,18 @@ void RendererSimd::startRenderLoop() {
         frameTimer.start();
 
         {
-            std::lock_guard<std::mutex> lock(mutexUpdate);
+            std::lock_guard<std::mutex> lock(mutex);
             updateData(dt);
             updateFinished = true;
+            workersFinished = 0;
         }
 
         nextPack.store(0);
         updateFinishedCv.notify_all();
 
         {
-            std::unique_lock<std::mutex> lock(mutexRender);
-            workersFinished = 0;
-            renderFinishedCv.wait(lock, [this] { return workersFinished == renderSettings.workerThreads; });
+            std::unique_lock<std::mutex> lock(mutex);
+            renderFinishedCv.wait(lock, [this] { return workersFinished == renderSettings.renderThreads; });
         }
 
         //RGB float -> RGBA byte (missing srgb conversion/ tone mapping)
@@ -106,8 +106,7 @@ void RendererSimd::renderTask() {
     while(window.isOpen()) {
         //Wait for update finish to start rendering
         {
-            std::unique_lock<std::mutex> lock(mutexUpdate);
-            updateFinished = false;
+            std::unique_lock<std::mutex> lock(mutex);
             updateFinishedCv.wait(lock, [this] { return updateFinished; });
         }
 
@@ -153,8 +152,9 @@ void RendererSimd::renderTask() {
         }
 
         {
-            std::lock_guard<std::mutex> lock(mutexRender);
+            std::lock_guard<std::mutex> lock(mutex);
             workersFinished++;
+            updateFinished = false;
         }
         renderFinishedCv.notify_all();
     }

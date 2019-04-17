@@ -8,5 +8,5 @@ struct RenderSettings {
     uint32 rayMarchingSteps;
     float rayMarchingEpsilon;
     float rayMarchingMaxDistance;
-    uint32 workerThreads;
+    uint32 renderThreads;
 };

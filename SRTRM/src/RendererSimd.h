@@ -41,10 +41,9 @@ private:
 
     std::vector<std::thread> workerPool;
     std::atomic<int> nextPack;
-    std::mutex mutexUpdate;
+    std::mutex mutex;
     std::condition_variable updateFinishedCv;
     bool updateFinished = false;
-    std::mutex mutexRender;
     std::condition_variable renderFinishedCv;
     int workersFinished = 0;
 

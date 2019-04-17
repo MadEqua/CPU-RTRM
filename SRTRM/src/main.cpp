@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
     renderSettings.rayMarchingSteps = 32;
     renderSettings.rayMarchingEpsilon = 0.01f;
     renderSettings.rayMarchingMaxDistance = 10.0f;
-    renderSettings.workerThreads = 3;
+    renderSettings.renderThreads = 4;
 
     Scene scene(new Camera(-2.0f, 90.0f, renderSettings.width, renderSettings.height));
     Sphere s = {{0.0f, 0.0f, 0.0f}, 0.5f};
