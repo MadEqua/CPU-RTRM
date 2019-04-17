@@ -111,45 +111,43 @@ void RendererSimd::renderTask() {
             updateFinishedCv.wait(lock, [this] { return updateFinished; });
         }
 
+        //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
+        //but it's a good order for writing the results to memory
         for(int currentPack = nextPack.load(); 
             currentPack < packCount; 
             currentPack = nextPack.fetch_add(1) + 1) {
             uint32 startPx = currentPack * SIMD_SIZE;
 
-            //TODO: bad traversal order for ray coherency (rays along lines will likely collide with different objects)
-            //but it's a good order for writing the results to memory
-            for(uint32 px = startPx; px < startPx + SIMD_SIZE; ++px) {
+            memcpy(point2Pack.x, &pixelToX[startPx], SIMD_SIZE * sizeof(float));
+            memcpy(point2Pack.y, &pixelToY[startPx], SIMD_SIZE * sizeof(float));
 
-                memcpy(point2Pack.x, &pixelToX[px], SIMD_SIZE * sizeof(float));
-                memcpy(point2Pack.y, &pixelToY[px], SIMD_SIZE * sizeof(float));
+            scene.camera->generateRayPack(point2Pack, rayPack);
 
-                scene.camera->generateRayPack(point2Pack, rayPack);
+            int collisionMask = raymarch(rayPack, collisionPack);
+            float *ptr = data + startPx * 3;
 
-                int collisionMask = raymarch(rayPack, collisionPack);
-                float *ptr = data + px * 3;
+            ColorPack colorPack;
 
-                //TODO: is this performant enough?
-                for(uint32 i = 0; i < SIMD_SIZE; ++i) {
+            if(collisionMask) {
+                shadeBlinnPhong(collisionPack, colorPack);
+                //shadeSteps(collisionPack, colorPack);
+            }
 
-                    if(collisionMask & (1 << i)) {
-                        /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
-                        *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
-                        *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
+            for(uint32 i = 0; i < SIMD_SIZE; ++i) {
 
-                        //TODO: this is wrong!! <------------------------------------------------------------------
-                        ColorPack colorPack;
-                        shadeBlinnPhong(collisionPack, colorPack);
-                        //shadeSteps(collisionPack, colorPack);
+                if(collisionMask & (1 << i)) {
+                    /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
+                    *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
+                    *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
 
-                        *(ptr + (i * 3) + 0) = colorPack.x[i];
-                        *(ptr + (i * 3) + 1) = colorPack.y[i];
-                        *(ptr + (i * 3) + 2) = colorPack.z[i];
-                    }
-                    else {
-                        *(ptr + (i * 3) + 0) = 135.0f / 256.0f;
-                        *(ptr + (i * 3) + 1) = 206.0f / 256.0f;
-                        *(ptr + (i * 3) + 2) = 235.0f / 256.0f;
-                    }
+                    *(ptr + (i * 3) + 0) = colorPack.x[i];
+                    *(ptr + (i * 3) + 1) = colorPack.y[i];
+                    *(ptr + (i * 3) + 2) = colorPack.z[i];
+                }
+                else {
+                    *(ptr + (i * 3) + 0) = 135.0f / 256.0f;
+                    *(ptr + (i * 3) + 1) = 206.0f / 256.0f;
+                    *(ptr + (i * 3) + 2) = 235.0f / 256.0f;
                 }
             }
         }
