@@ -10,11 +10,11 @@
 int main(int argc, char **argv) {
 
     RenderSettings renderSettings;
-    renderSettings.width = 600;
-    renderSettings.height = 600;
-    renderSettings.rayMarchingSteps = 32;
+    renderSettings.width = 700;
+    renderSettings.height = 700;
+    renderSettings.rayMarchingSteps = 64;
     renderSettings.rayMarchingEpsilon = 0.01f;
-    renderSettings.rayMarchingMaxDistance = 10.0f;
+    renderSettings.rayMarchingMaxDistance = 100.0f;
     renderSettings.renderThreads = 4;
 
     Scene scene(new Camera(-2.0f, 90.0f, renderSettings.width, renderSettings.height));

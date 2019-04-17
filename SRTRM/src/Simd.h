@@ -54,6 +54,8 @@
 #define CAST_I_TO_PS _mm_castsi128_ps
 #define CAST_PS_TO_I _mm_castps_si128
 
+#define FLOOR_PS _mm_floor_ps
+
 #endif
 
 
@@ -106,6 +108,8 @@
 
 #define CAST_I_TO_PS _mm256_castsi256_ps
 #define CAST_PS_TO_I _mm256_castps_si256
+
+#define FLOOR_PS _mm256_floor_ps
 
 #endif
 
@@ -196,6 +200,12 @@ SimdReg simdLog(SimdReg x);
 
 __forceinline SimdReg simdPow(SimdReg x, SimdReg y) {
     return simdExp(MUL_PS(simdLog(x), y));
+}
+
+__forceinline SimdReg simdMod(SimdReg x, SimdReg m) {
+    //x - m * floor(x / m)
+    SimdReg div = FLOOR_PS(DIV_PS(x, m));
+    return SUB_PS(x, MUL_PS(m, div));
 }
 
 

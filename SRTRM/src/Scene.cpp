@@ -8,7 +8,7 @@ Scene::Scene(Camera *camera) :
 }
 
 void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
-    fractalSdf(pointPack, floatPack);
+    repeatScene(pointPack, glm::vec3(2.02f), floatPack, std::function<SceneFunctionType>(&Scene::fractalSdf));
 }
 
 float Scene::sdf(const glm::vec3 &point) const {
@@ -20,6 +20,10 @@ float Scene::sdf(const glm::vec3 &point) const {
             min = d;
     }
     return min;
+}
+
+void Scene::update(float dt) {
+    camera->update(dt);
 }
 
 /*void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
@@ -81,7 +85,7 @@ float Scene::sdf(const glm::vec3 &point) const {
     STORE_PS(floatPack, res);
 }*/
 
-void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
+void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) {
     const int ITERATIONS = 4;
 
     //Huge performance boost by prefetching the constants block
@@ -128,7 +132,7 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
     STORE_PS(floatPack, res);
 }
 
-SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) const {
+SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) {
     SimdReg negOne = LOAD_PS(&SIMD_CONSTANTS[0]);
     SimdReg one = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE]);
     SimdReg invSqrtThree = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE * 3]);
@@ -177,6 +181,26 @@ void Scene::sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const {
     STORE_PS(floatPack, min);
 }
 
-void Scene::update(float dt) {
-    camera->update(dt);
+void Scene::repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneFunctionType> &sceneFunction) {
+    //vec3 q = mod(p, c) - 0.5*c;
+    //return primitve(q);
+
+    SimdReg cx = SET_PS1(period.x);
+    SimdReg cy = SET_PS1(period.y);
+    SimdReg cz = SET_PS1(period.z);
+
+    SimdReg modX = simdMod(LOAD_PS(in.x), cx);
+    SimdReg modY = simdMod(LOAD_PS(in.y), cy);
+    SimdReg modZ = simdMod(LOAD_PS(in.z), cz);
+
+    SimdReg half = SET_PS1(0.5f);
+    cx = MUL_PS(cx, half);
+    cy = MUL_PS(cy, half);
+    cz = MUL_PS(cz, half);
+
+    PointPack newPointPack;
+    STORE_PS(newPointPack.x, SUB_PS(modX, cx));
+    STORE_PS(newPointPack.y, SUB_PS(modY, cy));
+    STORE_PS(newPointPack.z, SUB_PS(modZ, cz));
+    sceneFunction(newPointPack, out);
 }

@@ -6,7 +6,10 @@
 #include "Simd.h"
 #include "Camera.h"
 
+#include <glm/glm.hpp>
+
 #include <memory>
+#include <functional>
 
 
 struct Sphere {
@@ -21,10 +24,9 @@ public:
     Scene(Camera *camera);
 
     std::vector<Sphere> spheres;
-    glm::vec3 fractalPos;
 
     std::unique_ptr<Camera> camera;
-    glm::vec3 lightDir = {0.1f, -1.0f, 0.0f}; //TODO
+    glm::vec3 lightDir = {0.5f, -1.0f, 0.0f}; //TODO
 
     void sdf(const PointPack &pointPack, FloatPack &floatPack) const;
     float sdf(const glm::vec3 &point) const;
@@ -33,9 +35,12 @@ public:
 
 private:
     //void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
-    void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
-    SimdReg fractalShape(SimdReg x, SimdReg y, SimdReg z) const;
+    static void fractalSdf(const PointPack &pointPack, FloatPack &floatPack);
+    static SimdReg fractalShape(SimdReg x, SimdReg y, SimdReg z);
 
-    void sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const;
+    void sphereSdf(const PointPack &, FloatPack &) const;
+
+    using SceneFunctionType = void(const PointPack&, FloatPack&);
+    static void repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneFunctionType> &sceneFunction);
 };
 
