@@ -8,7 +8,9 @@ Scene::Scene(Camera *camera) :
 }
 
 void Scene::sdf(const PointPack &pointPack, FloatPack &floatPack) const {
-    repeatScene(pointPack, glm::vec3(2.02f), floatPack, std::function<SceneFunctionType>(&Scene::fractalSdf));
+    repeatScene(pointPack, glm::vec3(6.0f), floatPack, std::function<SceneSdfType>(&Scene::fractalSdf));
+    //fractalSdf(pointPack, floatPack);
+    //sphereSdf(pointPack, floatPack);
 }
 
 float Scene::sdf(const glm::vec3 &point) const {
@@ -26,11 +28,11 @@ void Scene::update(float dt) {
     camera->update(dt);
 }
 
-/*void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
-    const int ITERATIONS = 6;
+/*void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) {
+    const int ITERATIONS = 4;
 
     //Huge performance boost by prefetching the constants block
-    PREFETCH(reinterpret_cast<char*>(&SIMD_CONSTANTS), _MM_HINT_T0);
+    PREFETCH_T0(&SIMD_CONSTANTS);
     
     SimdReg x = LOAD_PS(pointPack.x);
     SimdReg y = LOAD_PS(pointPack.y);
@@ -85,8 +87,8 @@ void Scene::update(float dt) {
     STORE_PS(floatPack, res);
 }*/
 
-void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) {
-    const int ITERATIONS = 4;
+void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const {
+    const int ITERATIONS = 3;
 
     //Huge performance boost by prefetching the constants block
     PREFETCH_T0(&SIMD_CONSTANTS);
@@ -102,8 +104,7 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) {
     SimdReg scale = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE * 2]);
     SimdReg scalePowAcum = one;
 
-    int n = 0;
-    while(n < ITERATIONS) {
+    for(int i = 0; i < ITERATIONS; ++i) {
         SimdReg mask = CMP_LT_PS(ADD_PS(x, y), zero);
         SimdReg temp = x;
         x = BLENDV_PS(x, MUL_PS(negOne, y), mask);
@@ -123,7 +124,6 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) {
         y = SUB_PS(MUL_PS(scale, y), one);
         z = SUB_PS(MUL_PS(scale, z), one);
 
-        n++;
         scalePowAcum = MUL_PS(scalePowAcum, scale);
     }
 
@@ -132,7 +132,7 @@ void Scene::fractalSdf(const PointPack &pointPack, FloatPack &floatPack) {
     STORE_PS(floatPack, res);
 }
 
-SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) {
+SimdReg Scene::fractalShape(SimdReg x, SimdReg y, SimdReg z) const{
     SimdReg negOne = LOAD_PS(&SIMD_CONSTANTS[0]);
     SimdReg one = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE]);
     SimdReg invSqrtThree = LOAD_PS(&SIMD_CONSTANTS[SIMD_SIZE * 3]);
@@ -181,7 +181,7 @@ void Scene::sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const {
     STORE_PS(floatPack, min);
 }
 
-void Scene::repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneFunctionType> &sceneFunction) {
+void Scene::repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneSdfType> &sceneSdf) const {
     //vec3 q = mod(p, c) - 0.5*c;
     //return primitve(q);
 
@@ -202,5 +202,5 @@ void Scene::repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack 
     STORE_PS(newPointPack.x, SUB_PS(modX, cx));
     STORE_PS(newPointPack.y, SUB_PS(modY, cy));
     STORE_PS(newPointPack.z, SUB_PS(modZ, cz));
-    sceneFunction(newPointPack, out);
+    sceneSdf(this, newPointPack, out);
 }

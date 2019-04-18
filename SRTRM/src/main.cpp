@@ -10,21 +10,21 @@
 int main(int argc, char **argv) {
 
     RenderSettings renderSettings;
-    renderSettings.width = 700;
-    renderSettings.height = 700;
-    renderSettings.rayMarchingSteps = 64;
-    renderSettings.rayMarchingEpsilon = 0.01f;
+    renderSettings.width = 1000;
+    renderSettings.height = renderSettings.width * (9.0f/16.0f);
+    renderSettings.rayMarchingSteps = 32;
+    renderSettings.rayMarchingEpsilon = 0.005f;
     renderSettings.rayMarchingMaxDistance = 100.0f;
     renderSettings.renderThreads = 4;
 
-    Scene scene(new Camera(-2.0f, 90.0f, renderSettings.width, renderSettings.height));
-    Sphere s = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    Scene scene(new Camera(glm::vec3(0.0f, 1.0f, -2.0f), 90.0f, renderSettings.width, renderSettings.height));
+    Sphere s = {{0.0f, -1000.0f, 0.0f}, 1000.0f};
     scene.spheres.push_back(s);
 
-    Sphere s1 = {{1.0f, 0.0f, 0.0f}, 0.4f};
+    Sphere s1 = {{0.5f, 0.5f, 0.0f}, 0.5f};
     scene.spheres.push_back(s1);
 
-    Sphere s2 = {{-1.0f, 0.0f, 0.0f}, 0.4f};
+    Sphere s2 = {{-0.5f, 0.5f, 0.0f}, 0.5f};
     scene.spheres.push_back(s2);
     
     Window window(renderSettings.width, renderSettings.height);

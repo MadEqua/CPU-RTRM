@@ -27,9 +27,12 @@ private:
     void renderTask();
 
     int raymarch(const RayPack &rayPack, CollisionPack &outCollisionPack);
+    
     void computeNormals(const PointPack &pointPack, VectorPack &outNormalPack);
+    
     void shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &outColorPack);
     void shadeSteps(const CollisionPack &collisionPack, ColorPack &outColorPack);
+    void shadeAmbientOcclusion(const PointPack &pointPack, ColorPack &outColorPack);
 
     const RenderSettings renderSettings;
     Scene &scene;

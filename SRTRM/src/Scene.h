@@ -34,13 +34,12 @@ public:
     void update(float dt);
 
 private:
-    //void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
-    static void fractalSdf(const PointPack &pointPack, FloatPack &floatPack);
-    static SimdReg fractalShape(SimdReg x, SimdReg y, SimdReg z);
+    void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
+    SimdReg fractalShape(SimdReg x, SimdReg y, SimdReg z) const;
 
-    void sphereSdf(const PointPack &, FloatPack &) const;
+    void sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const;
 
-    using SceneFunctionType = void(const PointPack&, FloatPack&);
-    static void repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneFunctionType> &sceneFunction);
+    using SceneSdfType = void(const Scene*, const PointPack&, FloatPack&);
+    void repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneSdfType> &sceneSdf) const;
 };
 

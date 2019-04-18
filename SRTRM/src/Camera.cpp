@@ -2,8 +2,8 @@
 
 #include <SFML/Window.hpp>
 
-Camera::Camera(float initialPositionZ, float fovy, uint32 widthPx, uint32 heightPx) :
-    initialPositionZ(initialPositionZ),
+Camera::Camera(const glm::vec3 &initialPosition, float fovy, uint32 widthPx, uint32 heightPx) :
+    initialPosition(initialPosition),
     tanHalfFovy(glm::tan(glm::radians(fovy * 0.5f))),
     widthPx(widthPx), heightPx(heightPx),
     invWidth(1.0f / static_cast<float>(widthPx)),
@@ -81,9 +81,9 @@ void Camera::update(float dt) {
         auto curCursorPos = sf::Mouse::getPosition();
         if(lastCursorPos.y != -1) {
             auto diff = lastCursorPos.y - curCursorPos.y;
-            auto newPos = initialPositionZ + diff * 0.01f;
-            if(glm::sign(newPos) == glm::sign(initialPositionZ)) {
-                initialPositionZ = newPos;
+            auto newPos = initialPosition.z + diff * 0.01f;
+            if(glm::sign(newPos) == glm::sign(initialPosition.z)) {
+                initialPosition.z = newPos;
                 updateMatrix();
             }
         }
@@ -112,7 +112,7 @@ void Camera::updateMatrix() {
                                 0.0f, cosX, -sinX,
                                 0.0f, sinX, cosX);
 
-    positionWorld = xRotMatrix * yRotMatrix * glm::vec3(0.0f, 0.0f, initialPositionZ);
+    positionWorld = xRotMatrix * yRotMatrix * initialPosition;
 
     cameraToWorldMatrix[2] = glm::normalize(-positionWorld);
     cameraToWorldMatrix[0] = glm::normalize(glm::cross(UP_VECTOR, cameraToWorldMatrix[2]));

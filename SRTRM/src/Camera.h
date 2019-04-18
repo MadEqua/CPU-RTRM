@@ -4,12 +4,13 @@
 #include "Simd.h"
 
 #include <SFML/System/Vector2.hpp>
+#include <glm/glm.hpp>
 
 //Camera that rotates around the origin
 class Camera
 {
 public:
-    Camera(float initialPositionZ, float fovy, uint32 widthPx, uint32 heightPx);
+    Camera(const glm::vec3 &initialPosition, float fovy, uint32 widthPx, uint32 heightPx);
 
     //Generates world space rays from pixel/screen coords
     void generateRayPack(const Point2Pack &pixelCoordsPack, RayPack &outRayPack) const;
@@ -19,7 +20,7 @@ public:
     glm::vec3 getPosition() const { return positionWorld; }
 
 private:
-    float initialPositionZ;
+    glm::vec3 initialPosition;
     float tanHalfFovy;
     uint32 widthPx, heightPx;
     float invWidth, invHeight;
