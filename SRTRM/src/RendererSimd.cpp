@@ -126,17 +126,13 @@ void RendererSimd::renderTask() {
 
             if(collisionMask) {
                 //shadeAmbientOcclusion(collisionPack.points, colorPack);
-                //shadeBlinnPhong(collisionPack, colorPack);
-                shadeSteps(collisionPack, colorPack);
+                shadeBlinnPhong(collisionPack, colorPack);
+                //shadeSteps(collisionPack, colorPack);
             }
 
             for(uint32 i = 0; i < SIMD_SIZE; ++i) {
 
                 if(collisionMask & (1 << i)) {
-                    /**(ptr + (i * 3) + 0) = collisionPack.normalX[i] * 0.5f + 0.5f;
-                    *(ptr + (i * 3) + 1) = collisionPack.normalY[i] * 0.5f + 0.5f;
-                    *(ptr + (i * 3) + 2) = collisionPack.normalZ[i] * 0.5f + 0.5f;*/
-
                     *(ptr + (i * 3) + 0) = colorPack.x[i];
                     *(ptr + (i * 3) + 1) = colorPack.y[i];
                     *(ptr + (i * 3) + 2) = colorPack.z[i];
@@ -244,53 +240,41 @@ void RendererSimd::computeNormals(const PointPack &pointPack, VectorPack &outNor
     SimdReg pointY = LOAD_PS(pointPack.y);
     SimdReg pointZ = LOAD_PS(pointPack.z);
 
+    //Distance of the points to the scene (no displacement)
+    STORE_PS(displacedPointPack.x, pointX);
+    STORE_PS(displacedPointPack.y, pointY);
+    STORE_PS(displacedPointPack.z, pointZ);
+    scene.sdf(displacedPointPack, distancePack1);
+
     //Displace x points to compute gradient
     SimdReg pointX1 = ADD_PS(pointX, e);
-    SimdReg pointX2 = SUB_PS(pointX, e);
 
     //Compute scene distance for displaced points
     STORE_PS(displacedPointPack.x, pointX1);
     STORE_PS(displacedPointPack.y, pointY);
     STORE_PS(displacedPointPack.z, pointZ);
-    scene.sdf(displacedPointPack, distancePack1);
-
-    STORE_PS(displacedPointPack.x, pointX2);
-    STORE_PS(displacedPointPack.y, pointY);
-    STORE_PS(displacedPointPack.z, pointZ);
     scene.sdf(displacedPointPack, distancePack2);
 
-    SimdReg diffX = SUB_PS(LOAD_PS(distancePack1), LOAD_PS(distancePack2));
+    SimdReg diffX = SUB_PS(LOAD_PS(distancePack2), LOAD_PS(distancePack1));
 
     //Do the same for Y and Z
     SimdReg pointY1 = ADD_PS(pointY, e);
-    SimdReg pointY2 = SUB_PS(pointY, e);
 
     STORE_PS(displacedPointPack.x, pointX);
     STORE_PS(displacedPointPack.y, pointY1);
     STORE_PS(displacedPointPack.z, pointZ);
-    scene.sdf(displacedPointPack, distancePack1);
-
-    STORE_PS(displacedPointPack.x, pointX);
-    STORE_PS(displacedPointPack.y, pointY2);
-    STORE_PS(displacedPointPack.z, pointZ);
     scene.sdf(displacedPointPack, distancePack2);
 
-    SimdReg diffY = SUB_PS(LOAD_PS(distancePack1), LOAD_PS(distancePack2));
+    SimdReg diffY = SUB_PS(LOAD_PS(distancePack2), LOAD_PS(distancePack1));
 
     SimdReg pointZ1 = ADD_PS(pointZ, e);
-    SimdReg pointZ2 = SUB_PS(pointZ, e);
 
     STORE_PS(displacedPointPack.x, pointX);
     STORE_PS(displacedPointPack.y, pointY);
     STORE_PS(displacedPointPack.z, pointZ1);
-    scene.sdf(displacedPointPack, distancePack1);
-
-    STORE_PS(displacedPointPack.x, pointX);
-    STORE_PS(displacedPointPack.y, pointY);
-    STORE_PS(displacedPointPack.z, pointZ2);
     scene.sdf(displacedPointPack, distancePack2);
 
-    SimdReg diffZ = SUB_PS(LOAD_PS(distancePack1), LOAD_PS(distancePack2));
+    SimdReg diffZ = SUB_PS(LOAD_PS(distancePack2), LOAD_PS(distancePack1));
 
     //Normalize gradient vectors (normals) for return
     simdNormalizePack(diffX, diffY, diffZ);
