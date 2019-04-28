@@ -4,6 +4,10 @@ CPU Real-Time Raymarcher is a renderer based on raymarching distance-fields. It 
 
 It was a project to learn about SIMD, cache-friendly programming and profiling/optimization.
 
+![](http://www.bmlourenco.com/public/images/cpu-rtrm/list.jpg)
+
+### Demo video: https://youtu.be/sUoEbEefhfQ
+
 ## Details
   * Developed with C++.
   * Raymarching based on sphere tracing.
