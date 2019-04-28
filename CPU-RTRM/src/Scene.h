@@ -9,7 +9,6 @@
 #include <glm/glm.hpp>
 
 #include <memory>
-#include <functional>
 
 
 struct Sphere {
@@ -17,19 +16,15 @@ struct Sphere {
     float radius;
 };
 
-//TODO: read scene from some disk file
 class Scene
 {
 public:
     Scene(Camera *camera);
 
-    std::vector<Sphere> spheres;
-
     std::unique_ptr<Camera> camera;
-    glm::vec3 lightDir = {0.5f, -1.0f, 0.0f}; //TODO
+    glm::vec3 lightPos;
 
     void sdf(const PointPack &pointPack, FloatPack &floatPack) const;
-    float sdf(const glm::vec3 &point) const;
 
     void update(float dt);
 
@@ -37,9 +32,9 @@ private:
     void fractalSdf(const PointPack &pointPack, FloatPack &floatPack) const;
     SimdReg fractalShape(SimdReg x, SimdReg y, SimdReg z) const;
 
-    void sphereSdf(const PointPack &pointPack, FloatPack &floatPack) const;
+    void sphereSdf(const PointPack &pointPack, float radius, FloatPack &floatPack) const;
+    void cubeSdf(const PointPack &pointPack, const glm::vec3 size, float roundness, FloatPack &floatPack) const;
 
-    using SceneSdfType = void(const Scene*, const PointPack&, FloatPack&);
-    void repeatScene(const PointPack &in, const glm::vec3 &period, FloatPack &out, const std::function<SceneSdfType> &sceneSdf) const;
+    void repeatOperator(const PointPack &in, const glm::vec3 &period, PointPack &out) const;
 };
 

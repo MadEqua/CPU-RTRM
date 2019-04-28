@@ -14,11 +14,11 @@
 class Scene;
 class Window;
 
-class RendererSimd
+class Renderer
 {
 public:
-    RendererSimd(const RenderSettings &renderSettings, Scene &scene, Window &window);
-    ~RendererSimd();
+    Renderer(const RenderSettings &renderSettings, Scene &scene, Window &window);
+    ~Renderer();
 
     void startRenderLoop();
 
@@ -33,6 +33,7 @@ private:
     void shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &outColorPack);
     void shadeSteps(const CollisionPack &collisionPack, ColorPack &outColorPack);
     void shadeAmbientOcclusion(const PointPack &pointPack, ColorPack &outColorPack);
+    void applyFog(const CollisionPack &collisionPack, ColorPack &colorPack);
 
     const RenderSettings renderSettings;
     Scene &scene;

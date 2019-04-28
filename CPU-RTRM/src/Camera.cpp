@@ -54,7 +54,7 @@ void Camera::generateRayPack(const Point2Pack &pixelCoordsPack, RayPack &outRayP
     SimdReg zBaseZ = SET_PS1(cameraToWorldMatrix[2].z);
     SimdReg dirWorldZ = ADD_PS(ADD_PS(MUL_PS(pixelCoordX, xBaseZ), MUL_PS(pixelCoordY, yBaseZ)), zBaseZ);
 
-    simdNormalizePack(dirWorldX, dirWorldY, dirWorldZ);
+    simdNormalize(dirWorldX, dirWorldY, dirWorldZ);
     STORE_PS(outRayPack.directions.x, dirWorldX);
     STORE_PS(outRayPack.directions.y, dirWorldY);
     STORE_PS(outRayPack.directions.z, dirWorldZ);
@@ -63,6 +63,11 @@ void Camera::generateRayPack(const Point2Pack &pixelCoordsPack, RayPack &outRayP
 }
 
 void Camera::update(float dt) {
+    //Move infinetely for demo purposes
+    initialPosition.z -= dt * 2.0f;
+    xRot = glm::sin(initialPosition.z * 0.0125f) * 60.0f;
+    updateMatrix();
+
     if(sf::Mouse::isButtonPressed(sf::Mouse::Right)) {
         auto curCursorPos = sf::Mouse::getPosition();
         bool xMov = lastCursorPos.x != -1;
@@ -118,9 +123,3 @@ void Camera::updateMatrix() {
     cameraToWorldMatrix[0] = glm::normalize(glm::cross(UP_VECTOR, cameraToWorldMatrix[2]));
     cameraToWorldMatrix[1] = glm::normalize(glm::cross(cameraToWorldMatrix[2], cameraToWorldMatrix[0]));
 }
-
-/*float Camera::angleClamp(float r) {
-    if(r < 0.0f) return 360.0f + r;
-    else if(r > 360.0f) return r - 360.0f;
-    else return r;
-}*/

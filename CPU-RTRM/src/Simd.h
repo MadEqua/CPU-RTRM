@@ -142,6 +142,7 @@ template <byte N>
 struct CollisionPackT {
     PointPackT<N> points;
     float steps[N]; //These are floats but could be ints
+    float ts[N]; //These are floats but could be ints
 };
 
 template <byte N>
@@ -161,7 +162,7 @@ using FloatPack = float[SIMD_SIZE];
 using IntPack = int[SIMD_SIZE];
 
 
-__forceinline SimdReg simdLengthPack(SimdReg x, SimdReg y, SimdReg z) {
+__forceinline SimdReg simdLength(SimdReg x, SimdReg y, SimdReg z) {
     SimdReg xSq = MUL_PS(x, x);
     SimdReg ySq = MUL_PS(y, y);
     SimdReg zSq = MUL_PS(z, z);
@@ -169,14 +170,14 @@ __forceinline SimdReg simdLengthPack(SimdReg x, SimdReg y, SimdReg z) {
     return SQRT_PS(sum);
 }
 
-__forceinline SimdReg simdSqLengthPack(SimdReg x, SimdReg y, SimdReg z) {
+__forceinline SimdReg simdSqLength(SimdReg x, SimdReg y, SimdReg z) {
     SimdReg xSq = MUL_PS(x, x);
     SimdReg ySq = MUL_PS(y, y);
     SimdReg zSq = MUL_PS(z, z);
     return ADD_PS(xSq, ADD_PS(ySq, zSq));
 }
 
-__forceinline void simdNormalizePack(SimdReg &x, SimdReg &y, SimdReg &z) {
+__forceinline void simdNormalize(SimdReg &x, SimdReg &y, SimdReg &z) {
     SimdReg xSq = MUL_PS(x, x);
     SimdReg ySq = MUL_PS(y, y);
     SimdReg zSq = MUL_PS(z, z);
@@ -188,11 +189,15 @@ __forceinline void simdNormalizePack(SimdReg &x, SimdReg &y, SimdReg &z) {
     z = MUL_PS(lengthInv, z);
 }
 
-__forceinline SimdReg simdDotPack(SimdReg x1, SimdReg y1, SimdReg z1, SimdReg x2, SimdReg y2, SimdReg z2) {
+__forceinline SimdReg simdDot(SimdReg x1, SimdReg y1, SimdReg z1, SimdReg x2, SimdReg y2, SimdReg z2) {
     SimdReg x = MUL_PS(x1, x2);
     SimdReg y = MUL_PS(y1, y2);
     SimdReg z = MUL_PS(z1, z2);
     return ADD_PS(x, ADD_PS(y, z));
+}
+
+__forceinline SimdReg simdAbs(SimdReg x) {
+    return NOT_AND_PS(SET_PS1(-0.0f), x);
 }
 
 SimdReg simdExp(SimdReg x);
@@ -206,6 +211,14 @@ __forceinline SimdReg simdMod(SimdReg x, SimdReg m) {
     //x - m * floor(x / m)
     SimdReg div = FLOOR_PS(DIV_PS(x, m));
     return SUB_PS(x, MUL_PS(m, div));
+}
+
+__forceinline SimdReg simdMix(SimdReg a, SimdReg b, SimdReg x) {
+    return ADD_PS(MUL_PS(a, SUB_PS(SET_PS1(1.0f), x)), MUL_PS(b, x));
+}
+
+__forceinline SimdReg simdClamp(SimdReg a, SimdReg min, SimdReg max) {
+    return MAX_PS(min, MIN_PS(a, max));
 }
 
 

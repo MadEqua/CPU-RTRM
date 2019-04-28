@@ -35,6 +35,6 @@ private:
     sf::RenderWindow window;
     sf::Texture texture;
 
-    const sf::String TITLE = "Somewhat Real-Time RayMarcher - Frame time: ";
+    const sf::String TITLE = "CPU-RTRM - Frame time: ";
 };
 

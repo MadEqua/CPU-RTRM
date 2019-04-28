@@ -1,11 +1,11 @@
-#include "RendererSimd.h"
+#include "Renderer.h"
 
 #include <glm/glm.hpp>
 
 #include "Scene.h"
 #include "Window.h"
 
-RendererSimd::RendererSimd(const RenderSettings &renderSettings, Scene &scene, Window &window) :
+Renderer::Renderer(const RenderSettings &renderSettings, Scene &scene, Window &window) :
     renderSettings(renderSettings),
     scene(scene),
     window(window),
@@ -37,7 +37,7 @@ RendererSimd::RendererSimd(const RenderSettings &renderSettings, Scene &scene, W
     initSimdConstants();
 }
 
-RendererSimd::~RendererSimd() {
+Renderer::~Renderer() {
     delete[] data;
     delete[] byteData;
 
@@ -45,13 +45,13 @@ RendererSimd::~RendererSimd() {
     delete[] pixelToY;
 }
 
-void RendererSimd::startRenderLoop() {
+void Renderer::startRenderLoop() {
     while(!window.isOpen())
         std::this_thread::yield();
 
     workerPool.resize(renderSettings.renderThreads);
     for(uint32 i = 0; i < renderSettings.renderThreads; ++i) {
-        workerPool[i] = std::thread(&RendererSimd::renderTask, this);
+        workerPool[i] = std::thread(&Renderer::renderTask, this);
         workerPool[i].detach();
     }
     
@@ -89,11 +89,11 @@ void RendererSimd::startRenderLoop() {
     }
 }
 
-void RendererSimd::updateData(float dt) {
+void Renderer::updateData(float dt) {
     scene.update(dt);
 }
 
-void RendererSimd::renderTask() {
+void Renderer::renderTask() {
     Point2Pack point2Pack;
     RayPack rayPack;
     CollisionPack collisionPack;
@@ -122,30 +122,30 @@ void RendererSimd::renderTask() {
             int collisionMask = raymarch(rayPack, collisionPack);
             float *ptr = data + startPx * 3;
 
-            ColorPack colorPack;
+            ColorPack colorPack = {0};
 
             if(collisionMask) {
                 //shadeAmbientOcclusion(collisionPack.points, colorPack);
                 shadeBlinnPhong(collisionPack, colorPack);
                 //shadeSteps(collisionPack, colorPack);
+
+                for(uint32 i = 0; i < SIMD_SIZE; ++i) {
+                    if(!(collisionMask & (1 << i))) { //TODO: mask out properly
+                        colorPack.x[i] = 0.0f;
+                        colorPack.y[i] = 0.0f;
+                        colorPack.z[i] = 0.0f;
+
+                        collisionPack.steps[i] = renderSettings.rayMarchingSteps;
+                        collisionPack.ts[i] = renderSettings.rayMarchingMaxDistance;
+                    }
+                }
             }
 
+            //applyFog(collisionPack, colorPack);
             for(uint32 i = 0; i < SIMD_SIZE; ++i) {
-
-                if(collisionMask & (1 << i)) {
-                    *(ptr + (i * 3) + 0) = colorPack.x[i];
-                    *(ptr + (i * 3) + 1) = colorPack.y[i];
-                    *(ptr + (i * 3) + 2) = colorPack.z[i];
-                }
-                else {
-                    /**(ptr + (i * 3) + 0) = 135.0f / 256.0f;
-                    *(ptr + (i * 3) + 1) = 206.0f / 256.0f;
-                    *(ptr + (i * 3) + 2) = 235.0f / 256.0f;*/
-
-                    *(ptr + (i * 3) + 1) = 0.1f;
-                    *(ptr + (i * 3) + 2) = 0.1f;
-                    *(ptr + (i * 3) + 0) = 0.1f;
-                }
+                *(ptr + (i * 3) + 0) = colorPack.x[i];
+                *(ptr + (i * 3) + 1) = colorPack.y[i];
+                *(ptr + (i * 3) + 2) = colorPack.z[i];
             }
         }
 
@@ -158,13 +158,17 @@ void RendererSimd::renderTask() {
     }
 }
 
-int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack) {
+int Renderer::raymarch(const RayPack &rayPack, CollisionPack &collisionPack) {
 
     const int ALL_ONES_MASK = (1 << SIMD_SIZE) - 1;
     int lastCollidedMask = 0;
     int collidedMask = 0;
 
-    collisionPack = {0};
+    collisionPack.points = {0};
+    for(int i = 0; i < SIMD_SIZE; ++i) {
+        collisionPack.steps[i] = renderSettings.rayMarchingSteps;
+        collisionPack.ts[i] = renderSettings.rayMarchingMaxDistance;
+    }
 
     SimdReg t = SET_ZERO_PS();
     SimdReg steps = SET_ZERO_PS();
@@ -197,6 +201,7 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
             STORE_PS(collisionPack.points.z, pointZ);
 
             STORE_PS(collisionPack.steps, steps);
+            STORE_PS(collisionPack.ts, t);
 
             //If every ray has collided finish early
             if(collidedMask == ALL_ONES_MASK) {
@@ -226,7 +231,7 @@ int RendererSimd::raymarch(const RayPack &rayPack, CollisionPack &collisionPack)
     return collidedMask;
 }
 
-void RendererSimd::computeNormals(const PointPack &pointPack, VectorPack &outNormalPack) {
+void Renderer::computeNormals(const PointPack &pointPack, VectorPack &outNormalPack) {
     const float EPSILON = 0.001f;
 
     PointPack displacedPointPack;
@@ -277,14 +282,14 @@ void RendererSimd::computeNormals(const PointPack &pointPack, VectorPack &outNor
     SimdReg diffZ = SUB_PS(LOAD_PS(distancePack2), LOAD_PS(distancePack1));
 
     //Normalize gradient vectors (normals) for return
-    simdNormalizePack(diffX, diffY, diffZ);
+    simdNormalize(diffX, diffY, diffZ);
 
     STORE_PS(outNormalPack.x, diffX);
     STORE_PS(outNormalPack.y, diffY);
     STORE_PS(outNormalPack.z, diffZ);
 }
 
-void RendererSimd::shadeAmbientOcclusion(const PointPack &pointPack, ColorPack &outColorPack) {
+void Renderer::shadeAmbientOcclusion(const PointPack &pointPack, ColorPack &outColorPack) {
     const uint32 SAMPLES = 4;
     const float STEP_DISTANCE = 0.25f;
 
@@ -331,52 +336,56 @@ void RendererSimd::shadeAmbientOcclusion(const PointPack &pointPack, ColorPack &
     STORE_PS(outColorPack.z, occlusion);
 }
 
-void RendererSimd::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &outColorPack) {
-    
+void Renderer::shadeBlinnPhong(const CollisionPack &collisionPack, ColorPack &outColorPack) {
     VectorPack normalPack;
     computeNormals(collisionPack.points, normalPack);
 
-    SimdReg Lx = SET_PS1(-scene.lightDir.x);
-    SimdReg Ly = SET_PS1(-scene.lightDir.y);
-    SimdReg Lz = SET_PS1(-scene.lightDir.z);
-    simdNormalizePack(Lx, Ly, Lz);
+    //Assuming point light
+    SimdReg Lx = SUB_PS(SET_PS1(scene.lightPos.x), LOAD_PS(collisionPack.points.x));
+    SimdReg Ly = SUB_PS(SET_PS1(scene.lightPos.y), LOAD_PS(collisionPack.points.y));
+    SimdReg Lz = SUB_PS(SET_PS1(scene.lightPos.z), LOAD_PS(collisionPack.points.z));
+    SimdReg lightDistance = simdLength(Lx, Ly, Lz); //Store the length before normalization
+    simdNormalize(Lx, Ly, Lz);
 
     SimdReg Nx = LOAD_PS(normalPack.x);
     SimdReg Ny = LOAD_PS(normalPack.y);
     SimdReg Nz = LOAD_PS(normalPack.z);
 
-    SimdReg diffuseTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Lx, Ly, Lz));
+    SimdReg diffuseTerm = MAX_PS(SET_ZERO_PS(), simdDot(Nx, Ny, Nz, Lx, Ly, Lz));
 
     //TODO: colors hardcoded
-    SimdReg difR = MUL_PS(SET_PS1(0.4f), diffuseTerm);
-    SimdReg difG = MUL_PS(SET_PS1(0.95f), diffuseTerm);
-    SimdReg difB = MUL_PS(SET_PS1(0.35f), diffuseTerm);
+    SimdReg difR = MUL_PS(SET_PS1(0.15f), diffuseTerm);
+    SimdReg difG = MUL_PS(SET_PS1(0.8f), diffuseTerm);
+    SimdReg difB = MUL_PS(SET_PS1(0.2f), diffuseTerm);
 
     auto cameraPos = scene.camera->getPosition();
     SimdReg Vx = SUB_PS(SET_PS1(cameraPos.x), LOAD_PS(collisionPack.points.x));
     SimdReg Vy = SUB_PS(SET_PS1(cameraPos.y), LOAD_PS(collisionPack.points.y));
     SimdReg Vz = SUB_PS(SET_PS1(cameraPos.z), LOAD_PS(collisionPack.points.z));
-    simdNormalizePack(Vx, Vy, Vz);
+    simdNormalize(Vx, Vy, Vz);
 
     SimdReg Hx = ADD_PS(Lx, Vx);
     SimdReg Hy = ADD_PS(Ly, Vy);
     SimdReg Hz = ADD_PS(Lz, Vz);
-    simdNormalizePack(Hx, Hy, Hz);
+    simdNormalize(Hx, Hy, Hz);
 
-    SimdReg specularTerm = MAX_PS(SET_ZERO_PS(), simdDotPack(Nx, Ny, Nz, Hx, Hy, Hz));
-    specularTerm = simdPow(specularTerm, SET_PS1(100.0f));
+    SimdReg specularTerm = MAX_PS(SET_ZERO_PS(), simdDot(Nx, Ny, Nz, Hx, Hy, Hz));
+    specularTerm = simdPow(specularTerm, SET_PS1(50.0f));
 
     //TODO: colors hardcoded
     /*SimdReg specR = MUL_PS(SET_PS1(1.0f), specularTerm);
     SimdReg specG = MUL_PS(SET_PS1(1.0f), specularTerm);
     SimdReg specB = MUL_PS(SET_PS1(1.0f), specularTerm);*/
 
-    STORE_PS(outColorPack.x, ADD_PS(difR, specularTerm));
-    STORE_PS(outColorPack.y, ADD_PS(difG, specularTerm));
-    STORE_PS(outColorPack.z, ADD_PS(difB, specularTerm));
+    //Light attenuation hardcoded
+    SimdReg attenuation = simdClamp(DIV_PS(SET_PS1(15.0f), MUL_PS(lightDistance, lightDistance)), SET_ZERO_PS(), SET_PS1(1.0f));
+
+    STORE_PS(outColorPack.x, MUL_PS(attenuation, ADD_PS(difR, specularTerm)));
+    STORE_PS(outColorPack.y, MUL_PS(attenuation, ADD_PS(difG, specularTerm)));
+    STORE_PS(outColorPack.z, MUL_PS(attenuation, ADD_PS(difB, specularTerm)));
 }
 
-void RendererSimd::shadeSteps(const CollisionPack &collisionPack, ColorPack &outColorPack) {
+void Renderer::shadeSteps(const CollisionPack &collisionPack, ColorPack &outColorPack) {
     SimdReg steps = LOAD_PS(collisionPack.steps);
     SimdReg factor = DIV_PS(steps, SET_PS1(static_cast<float>(renderSettings.rayMarchingSteps)));
 
@@ -390,4 +399,32 @@ void RendererSimd::shadeSteps(const CollisionPack &collisionPack, ColorPack &out
     STORE_PS(outColorPack.x, r);
     STORE_PS(outColorPack.y, g);
     STORE_PS(outColorPack.z, b);
+}
+
+void Renderer::applyFog(const CollisionPack &collisionPack, ColorPack &colorPack) {
+    //ammount = (1. - exp(-dist * FOG_AMMOUNT));
+
+    const float FOG_AMMOUNT = 0.1f;
+    const glm::vec3 FOG_COLOR = glm::vec3(0.0f);
+
+    SimdReg one = SET_PS1(1.0f);
+
+    const float NEG_AMMOUNT = -FOG_AMMOUNT;
+    SimdReg ammount = SUB_PS(one, simdExp(MUL_PS(LOAD_PS(collisionPack.ts), SET_PS1(NEG_AMMOUNT))));
+
+    SimdReg r = LOAD_PS(colorPack.x);
+    SimdReg g = LOAD_PS(colorPack.y);
+    SimdReg b = LOAD_PS(colorPack.z);
+
+    SimdReg fr = SET_PS1(FOG_COLOR.r);
+    SimdReg fg = SET_PS1(FOG_COLOR.g);
+    SimdReg fb = SET_PS1(FOG_COLOR.b);
+
+    r = simdMix(r, fr, ammount);
+    g = simdMix(g, fg, ammount);
+    b = simdMix(b, fb, ammount);
+
+    STORE_PS(colorPack.x, r);
+    STORE_PS(colorPack.y, g);
+    STORE_PS(colorPack.z, b);
 }

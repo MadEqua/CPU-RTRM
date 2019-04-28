@@ -34,7 +34,5 @@ private:
 
     glm::mat3 cameraToWorldMatrix;
     void updateMatrix();
-
-    //static float angleClamp(float r);
 };
 
